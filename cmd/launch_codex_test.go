@@ -136,17 +136,17 @@ func TestLaunchCodex_ExtraArgsOrder(t *testing.T) {
 		t.Fatalf("read stub args: %v", err)
 	}
 	got := splitNonEmpty(string(data))
-	// 預期：4 對 --config（共 8 元素）+ --yolo + exec + review this
-	if len(got) < 10 {
-		t.Fatalf("child args len = %d, want >= 10: %v", len(got), got)
+	// 預期：5 對 --config（共 10 元素）+ --yolo + exec + review this
+	if len(got) < 12 {
+		t.Fatalf("child args len = %d, want >= 12: %v", len(got), got)
 	}
 	// --yolo 緊接在 --config 之後，透傳在最後。
 	yoloIdx := indexOf(got, "--yolo")
-	if yoloIdx != 8 {
-		t.Errorf("--yolo index = %d, want 8 (after 4 --config pairs): %v", yoloIdx, got)
+	if yoloIdx != 10 {
+		t.Errorf("--yolo index = %d, want 10 (after 5 --config pairs): %v", yoloIdx, got)
 	}
-	if got[9] != "exec" || got[10] != "review this" {
-		t.Errorf("passthrough args = %v after --yolo, want [exec review this]", got[9:])
+	if got[11] != "exec" || got[12] != "review this" {
+		t.Errorf("passthrough args = %v after --yolo, want [exec review this]", got[11:])
 	}
 }
 
@@ -179,6 +179,7 @@ func TestLaunchCodex_ConfigArgsContent(t *testing.T) {
 	wantFragments := []string{
 		`model="gpt-4o"`,
 		`model_provider="byok"`,
+		`model_providers.byok.name="BYOK"`,
 		`model_providers.byok.base_url="https://api.openai.com/v1"`,
 		`model_providers.byok.env_key="BYOK_CODEX_API_KEY"`,
 	}

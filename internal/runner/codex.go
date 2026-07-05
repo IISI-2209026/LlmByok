@@ -28,6 +28,7 @@ const codexProviderID = "byok"
 //
 //	model                                  = modelOverride 或 profile.DefaultModel
 //	model_provider                         = "byok"
+//	model_providers.byok.name              = "BYOK"
 //	model_providers.byok.base_url          = profile.APIBase
 //	model_providers.byok.env_key           = "BYOK_CODEX_API_KEY"
 //
@@ -54,6 +55,7 @@ func BuildCodexArgs(profile *config.Profile, modelOverride string) (env []string
 	configArgs = []string{
 		"--config", `model="` + model + `"`,
 		"--config", `model_provider="` + codexProviderID + `"`,
+		"--config", `model_providers.` + codexProviderID + `.name="BYOK"`,
 		"--config", `model_providers.` + codexProviderID + `.base_url="` + profile.APIBase + `"`,
 		"--config", `model_providers.` + codexProviderID + `.env_key="` + codexAPIKeyEnv + `"`,
 	}

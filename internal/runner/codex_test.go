@@ -58,6 +58,7 @@ func TestBuildCodexArgs_ConfigArgsShape(t *testing.T) {
 	want := []string{
 		"--config", `model="gpt-4o"`,
 		"--config", `model_provider="byok"`,
+		"--config", `model_providers.byok.name="BYOK"`,
 		"--config", `model_providers.byok.base_url="https://api.openai.com/v1"`,
 		"--config", `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`,
 	}

@@ -84,6 +84,7 @@ func TestLaunchCodex_ByokApiKeyAndConfigInjected(t *testing.T) {
 	wantArgs := []string{
 		"--config", `model="gemma4"`,
 		"--config", `model_provider="byok"`,
+		"--config", `model_providers.byok.name="BYOK"`,
 		"--config", `model_providers.byok.base_url="https://api.openai.com/v1"`,
 		"--config", `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`,
 		"--yolo", "exec",
@@ -127,11 +128,11 @@ func TestLaunchCodex_NoExtraArgs(t *testing.T) {
 		t.Fatalf("read stub args output: %v", err)
 	}
 	gotArgs := splitArgs(string(argsData))
-	// 僅 4 對 --config，共 8 個元素。
-	if len(gotArgs) != 8 {
-		t.Fatalf("child args len = %d, want 8: %v", len(gotArgs), gotArgs)
+	// 僅 5 對 --config，共 10 個元素。
+	if len(gotArgs) != 10 {
+		t.Fatalf("child args len = %d, want 10: %v", len(gotArgs), gotArgs)
 	}
-	for i := 0; i < 8; i += 2 {
+	for i := 0; i < 10; i += 2 {
 		if gotArgs[i] != "--config" {
 			t.Errorf("child arg[%d] = %q, want \"--config\"", i, gotArgs[i])
 		}
