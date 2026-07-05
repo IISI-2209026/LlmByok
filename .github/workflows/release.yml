@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
 
 permissions:
   contents: write
@@ -38,27 +39,51 @@ jobs:
         id: version
         run: |
           VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
 
       - name: Build binary
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.version }}" -o byok .
+          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o byok .
 
       - name: Package (zip)
         if: matrix.ext == 'zip'
-        run: zip byok-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.zip byok
+        run: zip byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.zip byok
 
       - name: Package (tar.gz)
         if: matrix.ext == 'tar.gz'
-        run: tar czf byok-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz byok
+        run: tar czf byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz byok
 
       - uses: actions/upload-artifact@v4
         with:
           name: byok-${{ matrix.os }}-${{ matrix.arch }}
-          path: byok-${{ steps.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}
+          path: byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}
 
   release:
     name: Create GitHub Release
@@ -71,7 +96,31 @@ jobs:
         id: version
         run: |
           VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@v4
         with:
@@ -80,6 +129,7 @@ jobs:
 
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
-          tag_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
           generate_release_notes: true
           files: artifacts/*
