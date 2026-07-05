@@ -11,7 +11,6 @@ import (
 
 func main() {
 	root := cmd.NewRoot(version.Version)
-	root.AddCommand(cmd.NewVersionCmd())
 	if err := root.Execute(); err != nil {
 		// ErrExit 表示 RunE 已自行將訊息寫入 stderr，不再重複印出。
 		if !errors.Is(err, cmd.ErrExit) {

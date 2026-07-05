@@ -57,10 +57,10 @@ func TestBuildEnv_ModelOverride(t *testing.T) {
 		APIKey:       "sk-test",
 		DefaultModel: "gpt-4o",
 	}
-	env := BuildEnv(&profile, "glm-5.2")
+	env := BuildEnv(&profile, "gemma4")
 
-	if got := getEnv(t, env, "COPILOT_MODEL"); got != "glm-5.2" {
-		t.Errorf("COPILOT_MODEL = %q, want %q", got, "glm-5.2")
+	if got := getEnv(t, env, "COPILOT_MODEL"); got != "gemma4" {
+		t.Errorf("COPILOT_MODEL = %q, want %q", got, "gemma4")
 	}
 	if slices.Contains(env, "COPILOT_MODEL=gpt-4o") {
 		t.Errorf("env should not contain COPILOT_MODEL=gpt-4o, got %v", env)

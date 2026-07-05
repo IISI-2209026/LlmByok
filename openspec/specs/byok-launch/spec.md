@@ -17,8 +17,8 @@ The `byok launch copilot` command SHALL read the specified profile from the conf
 
 #### Scenario: Override model with --model flag
 
-- **WHEN** user runs `byok launch copilot --model glm-5.2` using a profile whose `default_model` is `gpt-4o`
-- **THEN** the `copilot` child process is started with `COPILOT_MODEL=glm-5.2` overriding the profile default and zero command-line arguments
+- **WHEN** user runs `byok launch copilot --model gemma4` using a profile whose `default_model` is `gpt-4o`
+- **THEN** the `copilot` child process is started with `COPILOT_MODEL=gemma4` overriding the profile default and zero command-line arguments
 
 #### Scenario: Select profile with --profile flag
 

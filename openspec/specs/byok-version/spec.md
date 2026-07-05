@@ -13,12 +13,12 @@ The build system SHALL support injecting the version string into the `internal/v
 #### Scenario: Default version without ldflags
 
 - **WHEN** the binary is built without ldflags injection
-- **THEN** `byok version` outputs `byok version dev`
+- **THEN** `byok --version` outputs `byok version dev`
 
 #### Scenario: Injected version via ldflags
 
 - **WHEN** the binary is built with `-ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0"`
-- **THEN** `byok version` outputs `byok version 0.1.0`
+- **THEN** `byok --version` outputs `byok version 0.1.0`
 
 
 <!-- @trace
@@ -30,7 +30,6 @@ code:
   - main.go
   - .spectra.yaml
   - .github/workflows/release.yml
-  - cmd/version.go
   - internal/runner/runner.go
   - Makefile
   - internal/version/version.go
@@ -38,37 +37,29 @@ code:
 tests:
   - cmd/launch_test.go
   - internal/runner/launch_integration_test.go
-  - cmd/version_test.go
   - internal/version/version_test.go
 -->
 
 ---
-### Requirement: Version subcommand
+### Requirement: Version flag
 
-The `byok` CLI SHALL provide a `version` subcommand that prints the current version string in the format `byok version <Version>`.
+The `byok` CLI SHALL provide a `--version` flag on the root command that prints the current version string in the format `byok version <Version>` and exits with code 0. The flag is provided by cobra's built-in `Version` field on the root command; no dedicated `version` subcommand SHALL be registered.
 
 #### Scenario: Display version
 
-- **WHEN** user runs `byok version`
+- **WHEN** user runs `byok --version`
 - **THEN** the command prints `byok version <current Version value>` to stdout and exits with code 0
 
 <!-- @trace
 source: add-version-and-release
 updated: 2026-07-05
 code:
-  - cmd/launch.go
-  - internal/runner/testdata/stub/main.go
+  - cmd/root.go
   - main.go
-  - .spectra.yaml
-  - .github/workflows/release.yml
-  - cmd/version.go
-  - internal/runner/runner.go
-  - Makefile
   - internal/version/version.go
   - README.md
 tests:
   - cmd/launch_test.go
   - internal/runner/launch_integration_test.go
-  - cmd/version_test.go
   - internal/version/version_test.go
 -->

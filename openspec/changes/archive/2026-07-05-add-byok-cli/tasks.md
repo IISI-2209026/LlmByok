@@ -37,5 +37,5 @@
 
 ## 7. 端對端驗證
 
-- [x] 7.1 撰寫整合測試 `internal/runner/launch_integration_test.go`：以 stub `copilot` 腳本（印出環境變數後結束）驗證 `byok launch copilot --model glm-5.2` 啟動後子行程環境中 `COPILOT_MODEL=glm-5.2`、`COPILOT_PROVIDER_BASE_URL` 等於 profile api_base、父行程環境不變。驗證：`TestLaunchIntegration_ByokVarsInjected` 通過。對應 spec「Launch Copilot with BYOK profile」、「Parent process environment unchanged」。
+- [x] 7.1 撰寫整合測試 `internal/runner/launch_integration_test.go`：以 stub `copilot` 腳本（印出環境變數後結束）驗證 `byok launch copilot --model gemma4` 啟動後子行程環境中 `COPILOT_MODEL=gemma4`、`COPILOT_PROVIDER_BASE_URL` 等於 profile api_base、父行程環境不變。驗證：`TestLaunchIntegration_ByokVarsInjected` 通過。對應 spec「Launch Copilot with BYOK profile」、「Parent process environment unchanged」。
 - [x] 7.2 執行完整測試套件：`go test ./...` 全部通過。驗證：無失敗測試，coverage 報告涵蓋 config 與 runner 套件。

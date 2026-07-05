@@ -38,7 +38,7 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "glm-5.2", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gemma4", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -62,7 +62,7 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 		"COPILOT_PROVIDER_BASE_URL": "https://api.openai.com/v1",
 		"COPILOT_PROVIDER_TYPE":      "openai",
 		"COPILOT_PROVIDER_API_KEY":   "sk-test-integration",
-		"COPILOT_MODEL":              "glm-5.2",
+		"COPILOT_MODEL":              "gemma4",
 	}
 	for key, expected := range want {
 		got := envLookup(childEnv, key)
@@ -102,7 +102,7 @@ func TestLaunchIntegration_ExtraArgsForwarded(t *testing.T) {
 	extraArgs := []string{"--yolo", "--continue", "--model", "x"}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "glm-5.2", stub, extraArgs, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gemma4", stub, extraArgs, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 

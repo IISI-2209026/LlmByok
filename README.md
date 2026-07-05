@@ -5,7 +5,7 @@
 ### 主要功能
 
 - **以設定檔（profile）管理金鑰** — 每個 profile 各自儲存 Provider、API Base、API Key 與 Default Model 四個設定值。
-- **一行指令啟動** — `byok launch copilot --model glm-5.2` 即可用選定 profile 的金鑰啟動 Copilot，並可選擇性地覆寫模型。
+- **一行指令啟動** — `byok launch copilot --model gemma4` 即可用選定 profile 的金鑰啟動 Copilot，並可選擇性地覆寫模型。
 - **暫時性的環境注入** — 環境變數只注入到 `copilot` 子行程，永遠不會寫入系統環境變數或 Shell 設定檔。
 - **第一版** 僅支援 Copilot CLI 與 OpenAI 相容端點（provider 類型為 `openai`）。
 
@@ -176,7 +176,7 @@ default_profile: openai-official
 byok launch copilot
 
 # 覆寫模型啟動
-byok launch copilot --model glm-5.2
+byok launch copilot --model gemma4
 
 # 指定特定 profile 啟動
 byok launch copilot --profile local-ollama
@@ -277,12 +277,12 @@ byok config set-default --name local-ollama
 
 byok 使用 [Semantic Versioning](https://semver.org/)（`MAJOR.MINOR.PATCH`）管理版本號。
 
-### `byok version`
+### `byok --version`
 
-顯示當前版本號。
+顯示當前版本號（cobra 內建 `--version` flag，輸出格式 `byok version <Version>`）。
 
 ```bash
-byok version
+byok --version
 # 輸出：byok version 0.1.0
 ```
 
