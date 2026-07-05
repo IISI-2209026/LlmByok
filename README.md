@@ -81,6 +81,42 @@ git clone https://github.com/IISI-2209026/LlmByok.git
 cd LlmByok
 ```
 
+## 安裝
+
+### 方式一：自 GitHub Releases 下載預建二進位（推薦）
+
+前往 [Releases 頁面](https://github.com/IISI-2209026/LlmByok/releases) 下載對應平台的資產，檔名格式為 `byok-<version>-<os>-<arch>.<ext>`：
+
+| 平台           | 資產名稱範例                              |
+| -------------- | ----------------------------------------- |
+| Windows amd64  | `byok-0.1.0-windows-amd64.zip`            |
+| Linux amd64    | `byok-0.1.0-linux-amd64.tar.gz`           |
+| macOS amd64    | `byok-0.1.0-darwin-amd64.tar.gz`          |
+| macOS arm64    | `byok-0.1.0-darwin-arm64.tar.gz`          |
+
+下載後解壓縮，將 `byok`（或 `byok.exe`）放到 `PATH` 上的目錄，再驗證：
+
+```bash
+byok --version
+# 輸出：byok version 0.1.0
+```
+
+> 以 Releases 預建二進位安裝為啟用 `byok update` 自我更新的建議路徑 — `byok update` 會自同一個 Releases 來源下載新版並替換執行檔。
+
+### 方式二：以 Go 工具鏈安裝
+
+若已安裝 Go 1.26 以上：
+
+```bash
+go install github.com/IISI-2209026/LlmByok@latest
+```
+
+安裝後執行檔位於 `GOBIN`（預設 `~/go/bin`），確認已加入 `PATH` 後驗證：
+
+```bash
+byok --version
+```
+
 ## 建置
 
 有三種方式建置 `byok` 執行檔：
@@ -284,6 +320,37 @@ byok config remove --name local-ollama
 
 ```bash
 byok config set-default --name local-ollama
+```
+
+### `byok update`
+
+檢查並自我更新 `byok` 至最新 GitHub Release。依當前版本所屬 channel 自動判定查詢範圍（含 `-dev.` 為 dev channel，否則 stable channel），下載對應平台資產並替換當前執行檔。
+
+- 不加旗標時，查到新版會下載並替換執行檔，完成後提示重新執行。
+- 已是最新版本時印出 `已是最新版本 (<version>)`。
+- `launch` 與 `update` 以外的子指令完成後，若有新版會在 stderr 印一行提示（可用 `BYOK_NO_UPDATE_CHECK=1` 停用）。
+
+**旗標：**
+
+| 旗標        | 說明                                                         |
+| ----------- | ----------------------------------------------------------- |
+| `--check`   | 只查詢最新版本，不下載或替換執行檔。                            |
+| `--channel` | 覆寫自動 channel 判定（`prerelease` 或 `release`），可跨 channel 更新。 |
+
+**範例：**
+
+```bash
+# 檢查並更新到當前 channel 最新版
+byok update
+
+# 只查詢不替換
+byok update --check
+
+# 覆寫 channel 查預發布版本
+byok update --channel prerelease --check
+
+# 覆寫 channel 更新到正式版本
+byok update --channel release
 ```
 
 ## 版本管理
