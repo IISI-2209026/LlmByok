@@ -38,3 +38,21 @@ jobs:
         with:
           name: coverage-report
           path: coverage.out
+
+      - name: Pushover notification on failure
+        if: failure()
+        uses: umahmood/pushover-actions@main
+        env:
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+        with:
+          status: ${{ job.status }}
+          title: '❌ LlmByok PR 測試失敗'
+          message: |
+            PR #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}
+            分支: ${{ github.head_ref }} → ${{ github.base_ref }}
+            倉庫: ${{ github.repository }}
+          priority: '1'
+          sound: 'pushover'
+          url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          url_title: '查看測試結果'
