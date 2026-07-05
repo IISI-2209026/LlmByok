@@ -9,8 +9,8 @@
 
 ## 3. Bump skill
 
-- [ ] 3.1 新增 `.github/skills/byok-bump-version/SKILL.md`：描述觸發條件（使用者要求晉升版號/bump version）、參數（bump 等級 patch（預設）/minor/major）、執行步驟（讀取 `internal/version/version.go` 的 `Version` 字面值→以正則精確匹配 `var Version = "..."`→解析 semver→依等級計算下一版→編輯字面值→驗證結果為合法 semver→`git add internal/version/version.go`→commit `chore: bump version to <next>`→`git push origin develop`）（實作 Version bump skill computes next base version、Bump skill edits version.go, commits, and pushes to develop、Bump skill guards against running on main、Bump skill push failure handling）（對應設計 Decision: bump skill 採 patch 預設、可選 minor/major，執行後 commit + push 到 develop）。驗證：手動依 SKILL.md 步驟執行可將 `0.1.0` bump 為 `0.1.1`、產生 commit 並 push 到 develop；在 main 分支執行時中止不改檔。
-- [ ] 3.2 在 SKILL.md 明確標示 skill 不建立 Git tag（tag 由 Release workflow 於 push 後自動產生）、不 push 到 main、不強推。驗證：SKILL.md 文字審查確認含此限制。
+- [x] 3.1 新增 `.github/skills/byok-bump-version/SKILL.md`：描述觸發條件（使用者要求晉升版號/bump version）、參數（bump 等級 patch（預設）/minor/major）、執行步驟（讀取 `internal/version/version.go` 的 `Version` 字面值→以正則精確匹配 `var Version = "..."`→解析 semver→依等級計算下一版→編輯字面值→驗證結果為合法 semver→`git add internal/version/version.go`→commit `chore: bump version to <next>`→`git push origin develop`）（實作 Version bump skill computes next base version、Bump skill edits version.go, commits, and pushes to develop、Bump skill guards against running on main、Bump skill push failure handling）（對應設計 Decision: bump skill 採 patch 預設、可選 minor/major，執行後 commit + push 到 develop）。驗證：手動依 SKILL.md 步驟執行可將 `0.1.0` bump 為 `0.1.1`、產生 commit 並 push 到 develop；在 main 分支執行時中止不改檔。
+- [x] 3.2 在 SKILL.md 明確標示 skill 不建立 Git tag（tag 由 Release workflow 於 push 後自動產生）、不 push 到 main、不強推。驗證：SKILL.md 文字審查確認含此限制。
 
 ## 4. AGENTS.md 與 README 文件
 
