@@ -1,6 +1,6 @@
 ## 1. Canonical base 版號
 
-- [ ] 1.1 修改 `internal/version/version.go`，將 `var Version = "dev"` 改為 `var Version = "0.1.0"` 作為起始 canonical base（實作 Canonical base version source）（對應設計 Decision: canonical base 版號來源為 version.go 字面值）。驗證：`go test ./internal/version/...` 通過，`go run . --version` 輸出 `byok version 0.1.0`。
+- [x] 1.1 修改 `internal/version/version.go`，將 `var Version = "dev"` 改為 `var Version = "0.1.0"` 作為起始 canonical base（實作 Canonical base version source）（對應設計 Decision: canonical base 版號來源為 version.go 字面值）。驗證：`go test ./internal/version/...` 通過，`go run . --version` 輸出 `byok version 0.1.0`。
 
 ## 2. Release workflow develop tag 唯一化
 
