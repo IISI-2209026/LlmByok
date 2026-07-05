@@ -39,6 +39,12 @@ jobs:
           name: coverage-report
           path: coverage.out
 
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
       - name: Pushover notification
         if: always()
         uses: umahmood/pushover-actions@main
@@ -50,9 +56,10 @@ jobs:
           title: ${{ job.status == 'success' && '✅ LlmByok PR 測試通過' || '❌ LlmByok PR 測試失敗' }}
           message: |
             PR #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}
+            版本: ${{ steps.version.outputs.version }}
             分支: ${{ github.head_ref }} → ${{ github.base_ref }}
             狀態: ${{ job.status }}
-          priority: '1'
-          sound: 'pushover'
+          priority: ${{ job.status == 'success' && '0' || '1' }}
+          sound: ${{ job.status == 'success' && 'pushover' || 'falling' }}
           url: '${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           url_title: '查看 PR'

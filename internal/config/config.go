@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/IISI-2209026/LlmByok/internal/secret"
 	"gopkg.in/yaml.v3"
 )
 
@@ -14,7 +15,7 @@ type Profile struct {
 	Name         string `yaml:"name"`
 	Provider     string `yaml:"provider"`
 	APIBase      string `yaml:"api_base"`
-	APIKey       string `yaml:"api_key"`
+	APIKey       string `yaml:"api_key,omitempty"`
 	DefaultModel string `yaml:"default_model"`
 }
 
@@ -77,3 +78,50 @@ func Save(path string, cfg *Config) error {
 	}
 	return nil
 }
+
+// Source 標識 API 金鑰的來源。
+type Source int
+
+const (
+	// SourceKeychain 表示金鑰取自 OS keychain。
+	SourceKeychain Source = iota
+	// SourcePlaintext 表示金鑰取自設定檔明文。
+	SourcePlaintext
+	// SourceMissing 表示找不到金鑰。
+	SourceMissing
+)
+
+// String 回傳 Source 的可讀名稱。
+func (s Source) String() string {
+	switch s {
+	case SourceKeychain:
+		return "keychain"
+	case SourcePlaintext:
+		return "plaintext"
+	default:
+		return "missing"
+	}
+}
+
+// KeyResolver 解析 Profile 的 API 金鑰來源。
+type KeyResolver interface {
+	// Resolve 回傳 API 金鑰、其來源以及可能的錯誤。
+	Resolve(p Profile) (apiKey string, source Source, err error)
+}
+
+// DefaultResolver 先查 keychain，再退回明文。
+type DefaultResolver struct{}
+
+// Resolve 依序嘗試 keychain → plaintext → missing。
+func (DefaultResolver) Resolve(p Profile) (string, Source, error) {
+	if key, err := secret.Load(p.Name); err == nil && key != "" {
+		return key, SourceKeychain, nil
+	}
+	if p.APIKey != "" {
+		return p.APIKey, SourcePlaintext, nil
+	}
+	return "", SourceMissing, fmt.Errorf("profile %q 沒有 API 金鑰（keychain 與明文皆為空）", p.Name)
+}
+
+// Resolver 是全域預設解析器，可在測試中被替換。
+var Resolver KeyResolver = DefaultResolver{}

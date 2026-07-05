@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // writeFile 是測試用的小型輔助函式。
@@ -75,6 +77,7 @@ func TestConfigAdd_DuplicateNameErrors(t *testing.T) {
 }
 
 func TestConfigList_Output(t *testing.T) {
+	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-abcdefghijklmnopqrstuvwxyz1234567890\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
 	var out bytes.Buffer

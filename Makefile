@@ -5,10 +5,10 @@ VERSION ?= $(shell sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/ve
 LDFLAGS := -X github.com/IISI-2209026/LlmByok/internal/version.Version=$(VERSION)
 
 build:
-	go build -ldflags "$(LDFLAGS)" -o dist/byok .
+	go build -ldflags "$(LDFLAGS)" -o dist/byok ./cmd/byok
 
 run:
-	go run main.go $(ARGS)
+	go run ./cmd/byok $(ARGS)
 
 clean:
 	cmd /c "if exist dist rmdir /s /q dist"

@@ -6,6 +6,62 @@ TBD - created by archiving change 'add-byok-cli'. Update Purpose after archive.
 
 ## Requirements
 
+### Requirement: Target tool selection and dispatch
+
+The `byok launch` command SHALL accept a target tool name as its first positional argument. The command SHALL dispatch to the `copilot` launch flow when the target is `copilot` and to the `codex` launch flow when the target is `codex`. When the target is omitted, the command SHALL print an error message stating that a target tool is required and exit with code 1. When the target is any value other than `copilot` or `codex`, the command SHALL print an error message listing the supported target tools and exit with code 1.
+
+#### Scenario: Launch copilot dispatches to copilot flow
+
+- **WHEN** user runs `byok launch copilot`
+- **THEN** the command dispatches to the copilot launch flow and behaves identically to the existing copilot launch behavior
+
+#### Scenario: Launch codex dispatches to codex flow
+
+- **WHEN** user runs `byok launch codex`
+- **THEN** the command dispatches to the codex launch flow
+
+#### Scenario: Omitted target tool
+
+- **WHEN** user runs `byok launch` with no positional argument
+- **THEN** the command prints an error message stating a target tool is required and exits with code 1
+
+#### Scenario: Unsupported target tool rejected
+
+- **WHEN** user runs `byok launch gemini`
+- **THEN** the command prints an error message listing `copilot` and `codex` as supported target tools and exits with code 1
+
+<!-- @trace
+source: add-codex-launch-and-pushover-tuning
+updated: 2026-07-05
+code:
+  - cmd/launch.go
+tests:
+  - cmd/launch_dispatch_test.go
+-->
+
+
+<!-- @trace
+source: add-codex-launch-and-pushover-tuning
+updated: 2026-07-05
+code:
+  - .github/workflows/release.yml
+  - cmd/launch_codex.go
+  - internal/runner/codex.go
+  - .github/workflows/pr-test.yml
+  - .github/skills/byok-bump-version/SKILL.md
+  - README.md
+  - AGENTS.md
+  - internal/version/version.go
+  - cmd/launch.go
+tests:
+  - cmd/launch_codex_test.go
+  - cmd/launch_dispatch_test.go
+  - internal/version/version_test.go
+  - internal/runner/codex_launch_test.go
+  - internal/runner/codex_test.go
+-->
+
+---
 ### Requirement: Launch Copilot with BYOK profile
 
 The `byok launch copilot` command SHALL read the specified profile from the config file and start the `copilot` executable as a child process with BYOK environment variables injected from the profile settings. When no `--profile` flag is provided, the default profile SHALL be used. The child process stdin, stdout, and stderr SHALL be transparently connected to the parent process so the user interacts with Copilot normally. The command SHALL forward extra arguments (from the `--yolo`/`-y` flag and the `--` passthrough) to the `copilot` executable in the order: yolo flag arguments first, then passthrough arguments.

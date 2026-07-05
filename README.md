@@ -81,16 +81,52 @@ git clone https://github.com/IISI-2209026/LlmByok.git
 cd LlmByok
 ```
 
+## 安裝
+
+### 方式一：自 GitHub Releases 下載預建二進位（推薦）
+
+前往 [Releases 頁面](https://github.com/IISI-2209026/LlmByok/releases) 下載對應平台的資產，檔名格式為 `byok-<version>-<os>-<arch>.<ext>`：
+
+| 平台           | 資產名稱範例                              |
+| -------------- | ----------------------------------------- |
+| Windows amd64  | `byok-0.1.0-windows-amd64.zip`            |
+| Linux amd64    | `byok-0.1.0-linux-amd64.tar.gz`           |
+| macOS amd64    | `byok-0.1.0-darwin-amd64.tar.gz`          |
+| macOS arm64    | `byok-0.1.0-darwin-arm64.tar.gz`          |
+
+下載後解壓縮，將 `byok`（或 `byok.exe`）放到 `PATH` 上的目錄，再驗證：
+
+```bash
+byok --version
+# 輸出：byok version 0.1.0
+```
+
+> 以 Releases 預建二進位安裝為啟用 `byok update` 自我更新的建議路徑 — `byok update` 會自同一個 Releases 來源下載新版並替換執行檔。
+
+### 方式二：以 Go 工具鏈安裝
+
+若已安裝 Go 1.26 以上：
+
+```bash
+go install github.com/IISI-2209026/LlmByok/cmd/byok@latest
+```
+
+安裝後執行檔位於 `GOBIN`（預設 `~/go/bin`），確認已加入 `PATH` 後驗證：
+
+```bash
+byok --version
+```
+
 ## 建置
 
 有三種方式建置 `byok` 執行檔：
 
 ```bash
 # 1. 建置到 ./dist（Windows 會產生 dist\byok.exe；macOS/Linux 產生 dist/byok）
-go build -o dist/byok .
+go build -o dist/byok ./cmd/byok
 
 # 2. 安裝到 GOBIN（之後可在 PATH 任何地方直接執行 `byok`）
-go install .
+go install ./cmd/byok
 
 # 3. 使用 Makefile（輸出同方式 1）
 make build
@@ -103,7 +139,7 @@ make build
 不想建置也可直接執行：
 
 ```bash
-go run main.go <指令> [旗標]
+go run ./cmd/byok <指令> [旗標]
 ```
 
 或執行已建置的執行檔：
@@ -152,12 +188,23 @@ default_profile: openai-official
 - macOS/Linux 可將權限設為 `600`：`chmod 600 ~/.byok/config.yaml`。
 - Windows 可透過檔案內容 > 安全性，將存取權限限制為你的使用者帳戶。
 - 絕對不要把 `~/.byok/config.yaml` commit 到版本控制。
+- **推薦**：使用 `byok config set-key` 或 `byok config import-keys` 將金鑰移至 OS keychain，設定檔中不再保留明碼 `api_key`。
 
 ## 使用說明
 
-### `byok launch copilot`
+### `byok launch <target>`
 
-以某個 BYOK profile 啟動 Copilot CLI。四個 `COPILOT_*` 環境變數只會注入到 `copilot` 子行程，你的 Shell 環境完全不受影響。
+以某個 BYOK profile 啟動指定的目標 CLI（`copilot` 或 `codex`），將 BYOK 設定暫時注入子程序環境；你的 Shell 環境永不被改變。
+
+- `copilot`：四個 `COPILOT_*` 環境變數只注入到 `copilot` 子行程。
+- `codex`：API 金鑰以 `BYOK_CODEX_API_KEY` 環境變數注入 `codex` 子行程，並透過 `--config` 旗標覆寫模型與連線設定；`~/.codex/config.toml` 完全不受影響。
+
+**Targets：**
+
+| Target    | 說明                                                |
+| --------- | --------------------------------------------------- |
+| `copilot` | 以 BYOK profile 啟動 GitHub Copilot CLI。           |
+| `codex`   | 以 BYOK profile 啟動 OpenAI Codex CLI。             |
 
 **旗標：**
 
@@ -166,35 +213,38 @@ default_profile: openai-official
 | `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
-| `-y`, `--yolo` | 啟用 copilot 的 yolo 模式（等同附加 `--yolo`）。 |
-| `--`        | 之後的參數原樣透傳給 copilot（不解析、不驗證）。     |
+| `-y`, `--yolo` | 啟用目標工具的 yolo 模式（等同附加 `--yolo`）。 |
+| `--`        | 之後的參數原樣透傳給目標工具（不解析、不驗證）。     |
 
 **範例：**
 
 ```bash
-# 使用預設 profile 與其 default_model 啟動
+# 使用預設 profile 與其 default_model 啟動 copilot
 byok launch copilot
 
 # 覆寫模型啟動
 byok launch copilot --model gemma4
+byok launch codex --model gpt-4o
 
 # 指定特定 profile 啟動
 byok launch copilot --profile local-ollama
+byok launch codex --profile openai-official
 
 # 使用自訂設定檔路徑
 byok launch copilot --config /tmp/my-config.yaml --profile openai-official
 
 # 啟用 yolo 模式（-y 為 --yolo 短形式）
 byok launch copilot -y
+byok launch codex -y
 
-# 透傳參數給 copilot（-- 之後原樣轉發，例如啟動 copilot skills）
+# 透傳參數給目標工具（-- 之後原樣轉發）
 byok launch copilot -- skills
-
-# 透傳多個參數
 byok launch copilot -- continue --model x
+byok launch codex -- exec
 
 # yolo + 透傳同時使用（--yolo 在前，透傳參數在後）
 byok launch copilot -y -- skills
+byok launch codex -y -- exec
 ```
 
 ### `byok config add`
@@ -273,6 +323,71 @@ byok config remove --name local-ollama
 byok config set-default --name local-ollama
 ```
 
+### 金鑰管理（OS keychain）
+
+`byok` 支援將 API 金鑰儲存於作業系統的 keychain（Windows Credential Manager、macOS Keychain、Linux Secret Service），避免明文寫入設定檔。金鑰以 `profile:<名稱>` 為 key 存入，service 名稱為 `byok`。
+
+`byok launch` 啟動時會自動依以下順序解析金鑰：**keychain 優先 → 設定檔明碼 fallback → 兩者皆無則報錯**。
+
+#### `byok config set-key <profile>`
+
+以互動式密碼提示（不回顯、不留 shell 歷史）輸入金鑰並存入 keychain，同時清除設定檔中的明碼 `api_key`。
+
+```bash
+byok config set-key openai-official
+# 提示：請輸入 API 金鑰（輸入不回顯）：
+```
+
+#### `byok config del-key <profile>`
+
+自 keychain 刪除該 profile 的金鑰。
+
+```bash
+byok config del-key openai-official
+```
+
+#### `byok config import-keys`
+
+將設定檔中所有非空明碼 `api_key` 批次匯入 keychain，成功後清除明碼欄位並回寫設定檔。單一 profile 失敗時記錄並繼續，最後印出失敗清單。
+
+```bash
+byok config import-keys
+# 匯入 2 個金鑰至 keychain
+```
+
+> **Linux 注意事項**：keychain 功能依賴 Secret Service D-Bus API（如 `gnome-keyring` 或 `KWallet`）。若環境中無 secret-service daemon，keychain 操作會回傳 backend-unavailable 錯誤；此時可繼續使用設定檔明碼 `api_key` 作為 fallback。
+
+### `byok update`
+
+檢查並自我更新 `byok` 至最新 GitHub Release。依當前版本所屬 channel 自動判定查詢範圍（含 `-dev.` 為 dev channel，否則 stable channel），下載對應平台資產並替換當前執行檔。
+
+- 不加旗標時，查到新版會下載並替換執行檔，完成後提示重新執行。
+- 已是最新版本時印出 `已是最新版本 (<version>)`。
+- `launch` 與 `update` 以外的子指令完成後，若有新版會在 stderr 印一行提示（可用 `BYOK_NO_UPDATE_CHECK=1` 停用）。
+
+**旗標：**
+
+| 旗標        | 說明                                                         |
+| ----------- | ----------------------------------------------------------- |
+| `--check`   | 只查詢最新版本，不下載或替換執行檔。                            |
+| `--channel` | 覆寫自動 channel 判定（`prerelease` 或 `release`），可跨 channel 更新。 |
+
+**範例：**
+
+```bash
+# 檢查並更新到當前 channel 最新版
+byok update
+
+# 只查詢不替換
+byok update --check
+
+# 覆寫 channel 查預發布版本
+byok update --channel prerelease --check
+
+# 覆寫 channel 更新到正式版本
+byok update --channel release
+```
+
 ## 版本管理
 
 byok 使用 [Semantic Versioning](https://semver.org/)（`MAJOR.MINOR.PATCH`）管理版本號。
@@ -286,35 +401,66 @@ byok --version
 # 輸出：byok version 0.1.0
 ```
 
-### 版本號更新流程
+### Canonical base 版號
 
-版本號定義於 `internal/version/version.go`，預設值為 `dev`。每次開發完成合併回 `main` 分支前：
+版號的唯一來源（canonical base）為 `internal/version/version.go` 的 `Version` 字面值（semver、無 `v` prefix、無後綴），目前為 `0.1.0`。Makefile 與 Release workflow 皆以 `sed` 讀取此字面值，不引入額外 VERSION 檔或以 Git tag 為來源。
 
-1. 編輯 `internal/version/version.go`，將 `Version` 更新為新版本號（如 `"0.1.0"` → `"0.1.1"`）
-2. 提交變更並合併至 `main` 分支
-3. GitHub Actions 會自動建置多平台執行檔並發布至 GitHub Release
+### 版本號與發布流程
+
+- **develop 預發布**：推送 develop → Release workflow 產生預發布，二進位版號 `<base>-dev.<run_number>`、tag `v<base>-dev.<run_number>`（如 `0.1.0-dev.42` / `v0.1.0-dev.42`）、標記為 prerelease。`run_number` 取自 GitHub Actions `github.run_number`，確保每次推送產生唯一 tag、不再撞 tag。
+- **main 穩定發布**：推送 main → Release workflow 產生穩定發布，二進位版號 `<base>`、tag `v<base>`（如 `0.1.0` / `v0.1.0`）。
+- **晉升流程**：
+  1. develop 累積預發布至可發布狀態。
+  2. merge develop → main 並推送 main → Release workflow 自動產生穩定發布 `v<base>`。
+  3. 於 develop 將 `internal/version/version.go` 的 base 晉升到下一個 patch（或其他 semver 遞增）並 commit。
+  4. push 到 develop，使下一輪預發布使用更高的 base（如 `0.1.1-dev.N`），下一輪 main 發布即為 `0.1.1`。
 
 ### 自動發布
 
-push 至 `main` 分支時，`.github/workflows/release.yml` 會：
+push 至 `main` 或 `develop` 分支時，`.github/workflows/release.yml` 會：
 
-1. 讀取 `internal/version/version.go` 中的版本號
-2. 以 matrix 策略平行建置四個平台執行檔：
+1. 讀取 `internal/version/version.go` 中的 canonical base 版號
+2. 依分支推導完整版號與 tag：
+   - `main`：`<base>` / `v<base>`（穩定發布）
+   - `develop`：`<base>-dev.<run_number>` / `v<base>-dev.<run_number>`（預發布）
+3. 以 matrix 策略平行建置四個平台執行檔：
    - `windows/amd64`（zip）
    - `linux/amd64`（tar.gz）
    - `darwin/amd64`（tar.gz）
    - `darwin/arm64`（tar.gz）
-3. 使用 `softprops/action-gh-release` 建立 GitHub Release，以版本號為 git tag，並附加所有平台壓縮檔
+4. 使用 `softprops/action-gh-release` 建立 GitHub Release，以版號為 git tag，並附加所有平台壓縮檔
 
-建置時透過 Go ldflags 注入版本號：
+建置時透過 Go ldflags 注入完整版號：
 
 ```bash
-go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok .
+go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok ./cmd/byok
 ```
 
 ## 運作原理（暫時性注入）
 
+### Copilot BYOK
+
 執行 `byok launch copilot` 時，`byok` 會複製當前行程的環境，**只**在這份副本中覆寫四個 `COPILOT_*` 變數（`COPILOT_PROVIDER_BASE_URL`、`COPILOT_PROVIDER_TYPE`、`COPILOT_PROVIDER_API_KEY`、`COPILOT_MODEL`），然後以這份修改後的環境啟動 `copilot` 作為子行程。父行程（你的 Shell）的環境永遠不會被修改 — 一旦 `copilot` 子行程結束，一切恢復原狀，因此平常使用 GitHub 託管模型的 Copilot 體驗完全不受影響。
+
+### Codex BYOK 運作原理
+
+執行 `byok launch codex` 時，`byok` 會以類似但不同的機制啟動 `codex`：
+
+1. **環境變數承載 API 金鑰** — `byok` 將 profile 的 `api_key` 以 `BYOK_CODEX_API_KEY` 注入 `codex` 子行程環境（覆寫既存值），父程序環境不變。
+2. **`--config` 旗標覆寫連線設定** — `byok` 透過多組 `--config` 旗標向 `codex` 指定：
+   - `model="<預設模型或 --model 覆寫>"`
+   - `model_provider="byok"`
+   - `model_providers.byok.base_url="<profile.api_base>"`
+   - `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`
+3. **不寫入 `~/.codex/config.toml`** — 所有覆寫僅透過命令列 `--config` 旗標傳遞，`byok` 不會讀取或修改你既有的 Codex 設定檔。
+
+命令列順序為 `codex [<--config ...>] [<--yolo>] [<透傳參數...]`，與 copilot 路徑一致（`--yolo` 在前、透傳在後）。
+
+## 官方文件
+
+- **Copilot CLI BYOK** — <https://docs.github.com/zh/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models>
+- **Codex CLI BYOK（自訂模型供應商）** — <https://developers.openai.com/codex/config-advanced#custom-model-providers>
+- **Codex CLI BYOK（替代模型供應商驗證）** — <https://developers.openai.com/codex/auth#alternative-model-providers>
 
 ## 疑難排解
 
@@ -326,4 +472,4 @@ go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0
 
 ## 授權與貢獻
 
-本專案以 MIT 授權。歡迎貢獻 — 請至專案開 issue 或 pull request。
+本專案以 MIT 授權（詳見 [LICENSE](LICENSE)）。歡迎貢獻 — 請至專案開 issue 或 pull request。
