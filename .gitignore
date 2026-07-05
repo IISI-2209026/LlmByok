@@ -14,6 +14,8 @@ openspec/.vector-search.db*
 # Go 測試覆蓋率
 coverage.txt
 coverage.html
+coverage
+coverage.out
 # 本機 go workspace
 go.work
 go.work.sum
