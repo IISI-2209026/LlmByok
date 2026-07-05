@@ -197,6 +197,42 @@ byok launch copilot -- continue --model x
 byok launch copilot -y -- skills
 ```
 
+### `byok launch codex`
+
+以某個 BYOK profile 啟動 OpenAI Codex CLI。`byok` 會將 API 金鑰以 `BYOK_CODEX_API_KEY` 環境變數注入 `codex` 子行程，並透過 `--config` 旗標覆寫模型與連線設定；你的 Shell 環境與 `~/.codex/config.toml` 完全不受影響。
+
+**旗標：**
+
+| 旗標        | 說明                                              |
+| ----------- | ------------------------------------------------ |
+| `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
+| `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
+| `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
+| `-y`, `--yolo` | 啟用 codex 的 yolo 模式（等同附加 `--yolo`）。   |
+| `--`        | 之後的參數原樣透傳給 codex（不解析、不驗證）。       |
+
+**範例：**
+
+```bash
+# 使用預設 profile 啟動 codex
+byok launch codex
+
+# 覆寫模型啟動
+byok launch codex --model gpt-4o
+
+# 指定特定 profile 啟動
+byok launch codex --profile openai-official
+
+# 啟用 yolo 模式
+byok launch codex -y
+
+# 透傳參數給 codex（例如執行 codex exec）
+byok launch codex -- exec
+
+# yolo + 透傳同時使用（--yolo 在前，透傳參數在後）
+byok launch codex -y -- exec
+```
+
 ### `byok config add`
 
 新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。
@@ -314,7 +350,29 @@ go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0
 
 ## 運作原理（暫時性注入）
 
+### Copilot BYOK
+
 執行 `byok launch copilot` 時，`byok` 會複製當前行程的環境，**只**在這份副本中覆寫四個 `COPILOT_*` 變數（`COPILOT_PROVIDER_BASE_URL`、`COPILOT_PROVIDER_TYPE`、`COPILOT_PROVIDER_API_KEY`、`COPILOT_MODEL`），然後以這份修改後的環境啟動 `copilot` 作為子行程。父行程（你的 Shell）的環境永遠不會被修改 — 一旦 `copilot` 子行程結束，一切恢復原狀，因此平常使用 GitHub 託管模型的 Copilot 體驗完全不受影響。
+
+### Codex BYOK 運作原理
+
+執行 `byok launch codex` 時，`byok` 會以類似但不同的機制啟動 `codex`：
+
+1. **環境變數承載 API 金鑰** — `byok` 將 profile 的 `api_key` 以 `BYOK_CODEX_API_KEY` 注入 `codex` 子行程環境（覆寫既存值），父程序環境不變。
+2. **`--config` 旗標覆寫連線設定** — `byok` 透過多組 `--config` 旗標向 `codex` 指定：
+   - `model="<預設模型或 --model 覆寫>"`
+   - `model_provider="byok"`
+   - `model_providers.byok.base_url="<profile.api_base>"`
+   - `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`
+3. **不寫入 `~/.codex/config.toml`** — 所有覆寫僅透過命令列 `--config` 旗標傳遞，`byok` 不會讀取或修改你既有的 Codex 設定檔。
+
+命令列順序為 `codex [<--config ...>] [<--yolo>] [<透傳參數...]`，與 copilot 路徑一致（`--yolo` 在前、透傳在後）。
+
+## 官方文件
+
+- **Copilot CLI BYOK** — <https://docs.github.com/zh/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models>
+- **Codex CLI BYOK（自訂模型供應商）** — <https://developers.openai.com/codex/config-advanced#custom-model-providers>
+- **Codex CLI BYOK（替代模型供應商驗證）** — <https://developers.openai.com/codex/auth#alternative-model-providers>
 
 ## 疑難排解
 

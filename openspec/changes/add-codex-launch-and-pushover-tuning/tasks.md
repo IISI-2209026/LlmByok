@@ -25,8 +25,8 @@
 
 ## 6. README 與官方文件
 
-- [ ] 6.1 更新 `README.md`：新增 `byok launch codex` 操作說明（旗標表格與範例，對齊 copilot 段落）、新增「Codex BYOK 運作原理」段落說明 `BYOK_CODEX_API_KEY` + `--config` 覆寫且不寫入 `~/.codex/config.toml`。驗證：README 內容審查確認段落完整、範例可複製執行。
-- [ ] 6.2 在 `README.md` 補上官方文件連結區段：Copilot CLI BYOK 官方文件（https://docs.github.com/zh/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models ）與 Codex CLI BYOK 官方文件（https://developers.openai.com/codex/config-advanced#custom-model-providers 與 https://developers.openai.com/codex/auth#alternative-model-providers ）。驗證：連結可點擊且指向正確章節。
+- [x] 6.1 更新 `README.md`：新增 `byok launch codex` 操作說明（旗標表格與範例，對齊 copilot 段落）、新增「Codex BYOK 運作原理」段落說明 `BYOK_CODEX_API_KEY` + `--config` 覆寫且不寫入 `~/.codex/config.toml`。驗證：README 內容審查確認段落完整、範例可複製執行。
+- [x] 6.2 在 `README.md` 補上官方文件連結區段：Copilot CLI BYOK 官方文件（https://docs.github.com/zh/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models ）與 Codex CLI BYOK 官方文件（https://developers.openai.com/codex/config-advanced#custom-model-providers 與 https://developers.openai.com/codex/auth#alternative-model-providers ）。驗證：連結可點擊且指向正確章節。
 
 ## 7. AGENTS.md 架構與規範文件
 
