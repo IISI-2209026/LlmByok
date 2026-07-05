@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            ext: zip
+          - os: linux
+            arch: amd64
+            ext: tar.gz
+          - os: darwin
+            arch: amd64
+            ext: tar.gz
+          - os: darwin
+            arch: arm64
+            ext: tar.gz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o byok .
+
+      - name: Package (zip)
+        if: matrix.ext == 'zip'
+        run: zip byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.zip byok
+
+      - name: Package (tar.gz)
+        if: matrix.ext == 'tar.gz'
+        run: tar czf byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz byok
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: byok-${{ matrix.os }}-${{ matrix.arch }}
+          path: byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          generate_release_notes: true
+          files: artifacts/*
+
+  notify:
+    name: Pushover Notification
+    needs: [build, release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          case "${{ github.ref }}" in
+            refs/heads/develop)
+              SUFFIX="-dev"
+              ;;
+          esac
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine overall status
+        id: overall
+        run: |
+          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.release.result }}" = "success" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+            echo "emoji=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            echo "emoji=❌" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pushover notification
+        uses: umahmood/pushover-actions@main
+        env:
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+        with:
+          status: ${{ steps.overall.outputs.status }}
+          title: '${{ steps.overall.outputs.emoji }} LlmByok Release ${{ steps.version.outputs.full_version }}'
+          message: |
+            分支: ${{ github.ref_name }}
+            版本: ${{ steps.version.outputs.full_version }}
+            狀態: ${{ steps.overall.outputs.status }}
+          priority: '1'
+          sound: 'pushover'
+          url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          url_title: '查看 Release 詳情'
