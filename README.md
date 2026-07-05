@@ -155,9 +155,19 @@ default_profile: openai-official
 
 ## 使用說明
 
-### `byok launch copilot`
+### `byok launch <target>`
 
-以某個 BYOK profile 啟動 Copilot CLI。四個 `COPILOT_*` 環境變數只會注入到 `copilot` 子行程，你的 Shell 環境完全不受影響。
+以某個 BYOK profile 啟動指定的目標 CLI（`copilot` 或 `codex`），將 BYOK 設定暫時注入子程序環境；你的 Shell 環境永不被改變。
+
+- `copilot`：四個 `COPILOT_*` 環境變數只注入到 `copilot` 子行程。
+- `codex`：API 金鑰以 `BYOK_CODEX_API_KEY` 環境變數注入 `codex` 子行程，並透過 `--config` 旗標覆寫模型與連線設定；`~/.codex/config.toml` 完全不受影響。
+
+**Targets：**
+
+| Target    | 說明                                                |
+| --------- | --------------------------------------------------- |
+| `copilot` | 以 BYOK profile 啟動 GitHub Copilot CLI。           |
+| `codex`   | 以 BYOK profile 啟動 OpenAI Codex CLI。             |
 
 **旗標：**
 
@@ -166,70 +176,37 @@ default_profile: openai-official
 | `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
-| `-y`, `--yolo` | 啟用 copilot 的 yolo 模式（等同附加 `--yolo`）。 |
-| `--`        | 之後的參數原樣透傳給 copilot（不解析、不驗證）。     |
+| `-y`, `--yolo` | 啟用目標工具的 yolo 模式（等同附加 `--yolo`）。 |
+| `--`        | 之後的參數原樣透傳給目標工具（不解析、不驗證）。     |
 
 **範例：**
 
 ```bash
-# 使用預設 profile 與其 default_model 啟動
+# 使用預設 profile 與其 default_model 啟動 copilot
 byok launch copilot
 
 # 覆寫模型啟動
 byok launch copilot --model gemma4
+byok launch codex --model gpt-4o
 
 # 指定特定 profile 啟動
 byok launch copilot --profile local-ollama
+byok launch codex --profile openai-official
 
 # 使用自訂設定檔路徑
 byok launch copilot --config /tmp/my-config.yaml --profile openai-official
 
 # 啟用 yolo 模式（-y 為 --yolo 短形式）
 byok launch copilot -y
-
-# 透傳參數給 copilot（-- 之後原樣轉發，例如啟動 copilot skills）
-byok launch copilot -- skills
-
-# 透傳多個參數
-byok launch copilot -- continue --model x
-
-# yolo + 透傳同時使用（--yolo 在前，透傳參數在後）
-byok launch copilot -y -- skills
-```
-
-### `byok launch codex`
-
-以某個 BYOK profile 啟動 OpenAI Codex CLI。`byok` 會將 API 金鑰以 `BYOK_CODEX_API_KEY` 環境變數注入 `codex` 子行程，並透過 `--config` 旗標覆寫模型與連線設定；你的 Shell 環境與 `~/.codex/config.toml` 完全不受影響。
-
-**旗標：**
-
-| 旗標        | 說明                                              |
-| ----------- | ------------------------------------------------ |
-| `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
-| `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
-| `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
-| `-y`, `--yolo` | 啟用 codex 的 yolo 模式（等同附加 `--yolo`）。   |
-| `--`        | 之後的參數原樣透傳給 codex（不解析、不驗證）。       |
-
-**範例：**
-
-```bash
-# 使用預設 profile 啟動 codex
-byok launch codex
-
-# 覆寫模型啟動
-byok launch codex --model gpt-4o
-
-# 指定特定 profile 啟動
-byok launch codex --profile openai-official
-
-# 啟用 yolo 模式
 byok launch codex -y
 
-# 透傳參數給 codex（例如執行 codex exec）
+# 透傳參數給目標工具（-- 之後原樣轉發）
+byok launch copilot -- skills
+byok launch copilot -- continue --model x
 byok launch codex -- exec
 
 # yolo + 透傳同時使用（--yolo 在前，透傳參數在後）
+byok launch copilot -y -- skills
 byok launch codex -y -- exec
 ```
 
@@ -333,16 +310,8 @@ byok --version
 - **晉升流程**：
   1. develop 累積預發布至可發布狀態。
   2. merge develop → main 並推送 main → Release workflow 自動產生穩定發布 `v<base>`。
-  3. 於 develop 執行 `byok-bump-version` skill 將 base 晉升到下一個 patch（預設；可選 minor/major）。
+  3. 於 develop 將 `internal/version/version.go` 的 base 晉升到下一個 patch（或其他 semver 遞增）並 commit。
   4. push 到 develop，使下一輪預發布使用更高的 base（如 `0.1.1-dev.N`），下一輪 main 發布即為 `0.1.1`。
-
-### `byok-bump-version` skill
-
-以 Copilot CLI skill `.github/skills/byok-bump-version/SKILL.md` 晉升版號：
-
-- 預設 **patch**（`0.1.0` → `0.1.1`），可指定 **minor**（`0.2.0`）或 **major**（`1.0.0`）。
-- 流程：讀取 `internal/version/version.go` → 解析 semver → 計算下一版 → 編輯字面值 → `git add` → commit `chore: bump version to <next>` → `git push origin develop`。
-- 限制：不建立 Git tag（tag 由 Release workflow 於 push 後自動產生）、不 push 到 main、不強推；在 main 分支執行時中止。
 
 ### 自動發布
 
@@ -401,4 +370,4 @@ go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0
 
 ## 授權與貢獻
 
-本專案以 MIT 授權。歡迎貢獻 — 請至專案開 issue 或 pull request。
+本專案以 MIT 授權（詳見 [LICENSE](LICENSE)）。歡迎貢獻 — 請至專案開 issue 或 pull request。
