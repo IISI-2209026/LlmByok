@@ -52,7 +52,7 @@ jobs:
             PR #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}
             分支: ${{ github.head_ref }} → ${{ github.base_ref }}
             狀態: ${{ job.status }}
-          priority: '1'
-          sound: 'pushover'
+          priority: ${{ job.status == 'success' && '0' || '1' }}
+          sound: ${{ job.status == 'success' && 'pushover' || 'falling' }}
           url: '${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           url_title: '查看 PR'

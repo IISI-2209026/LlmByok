@@ -20,8 +20,8 @@
 
 ## 5. Pushover 通知調整
 
-- [ ] 5.1 修改 `.github/workflows/release.yml` 的 `notify` job：以 `needs.build.result` 與 `needs.release.result` 推導整體狀態（兩者皆 `success` 才為 `success`，否則 `failure`，涵蓋 Notification status derivation），並以 ternary 依狀態選取 `priority`（成功 `'0'`、失敗 `'1'`）與 `sound`（成功中性/正向音、失敗警示音，涵蓋 Pushover notification priority and sound by result）（對應設計 Decision: Pushover 通知以 job/needs 結果決定 priority 與 sound）。驗證：YAML 靜態檢視確認 `priority`/`sound` 隨狀態分支；以 `act` 或 workflow run 歷史確認成功與失敗各發出對應優先權。
-- [ ] 5.2 修改 `.github/workflows/pr-test.yml` 的 Pushover 步驟：以 `job.status` 推導狀態，成功用 `priority: '0'` 與中性/正向音、失敗用 `priority: '1'` 與警示音。驗證：YAML 靜態檢視確認 `priority`/`sound` 隨 `job.status` 分支。
+- [x] 5.1 修改 `.github/workflows/release.yml` 的 `notify` job：以 `needs.build.result` 與 `needs.release.result` 推導整體狀態（兩者皆 `success` 才為 `success`，否則 `failure`，涵蓋 Notification status derivation），並以 ternary 依狀態選取 `priority`（成功 `'0'`、失敗 `'1'`）與 `sound`（成功中性/正向音、失敗警示音，涵蓋 Pushover notification priority and sound by result）（對應設計 Decision: Pushover 通知以 job/needs 結果決定 priority 與 sound）。驗證：YAML 靜態檢視確認 `priority`/`sound` 隨狀態分支；以 `act` 或 workflow run 歷史確認成功與失敗各發出對應優先權。
+- [x] 5.2 修改 `.github/workflows/pr-test.yml` 的 Pushover 步驟：以 `job.status` 推導狀態，成功用 `priority: '0'` 與中性/正向音、失敗用 `priority: '1'` 與警示音。驗證：YAML 靜態檢視確認 `priority`/`sound` 隨 `job.status` 分支。
 
 ## 6. README 與官方文件
 

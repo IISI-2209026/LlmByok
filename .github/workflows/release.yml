@@ -177,7 +177,7 @@ jobs:
             分支: ${{ github.ref_name }}
             版本: ${{ steps.version.outputs.full_version }}
             狀態: ${{ steps.overall.outputs.status }}
-          priority: '1'
-          sound: 'pushover'
+          priority: ${{ steps.overall.outputs.status == 'success' && '0' || '1' }}
+          sound: ${{ steps.overall.outputs.status == 'success' && 'pushover' || 'falling' }}
           url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           url_title: '查看 Release 詳情'
