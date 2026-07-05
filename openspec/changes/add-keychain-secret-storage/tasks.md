@@ -30,5 +30,5 @@
 
 ## 6. 驗證
 
-- [ ] 6.1 執行 `go build ./cmd/byok` 確認產出檔名為 byok；`go vet ./...` 無警告；`go test ./...`（Windows 不加 -race）全部通過。驗證：三項指令皆 exit 0。
-- [ ] 6.2 手動端對端：`byok config set-key <profile>` 後確認 `~/.byok/config.yaml` 不再含明碼 api_key，且 `byok launch <target>` 仍可正常啟動（金鑰來自 keychain）。驗證：手動斷言設定檔無明碼且 launch 成功。
+- [x] 6.1 執行 `go build ./cmd/byok` 確認產出檔名為 byok；`go vet ./...` 無警告；`go test ./...`（Windows 不加 -race）全部通過。驗證：三項指令皆 exit 0。
+- [x] 6.2 手動端對端：`byok config set-key <profile>` 後確認 `~/.byok/config.yaml` 不再含明碼 api_key，且 `byok launch <target>` 仍可正常啟動（金鑰來自 keychain）。驗證：手動斷言設定檔無明碼且 launch 成功。
