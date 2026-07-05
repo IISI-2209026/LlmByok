@@ -30,9 +30,9 @@
 
 ## 7. AGENTS.md 架構與規範文件
 
-- [ ] 7.1 在 `AGENTS.md` 既有 Spectra 區塊（`<!-- SPECTRA:END -->`）之後新增「專案架構」區塊，內容取自現有原始碼事實：Go 1.26+ cobra CLI、模組路徑 `github.com/IISI-2209026/LlmByok`、入口 `main.go`、`cmd`（cobra 指令與目標分派）/`internal/config`（YAML profile 載入儲存）/`internal/runner`（BYOK 環境建置與子程序啟動）/`internal/version`（版本嵌入）套件職責、設定檔位置 `~/.byok/config.yaml`（實作 AGENTS.md documents project architecture）（對應設計 Decision: AGENTS.md 作為架構與規範的權威文件並隨變更同步）。驗證：`AGENTS.md` 含此區塊且所述套件/路徑與原始碼一致。
-- [ ] 7.2 在「專案架構」之後新增「開發規範」區塊：BYOK 注入僅作用於子程序（父程序與 shell 環境不變）、不寫入使用者設定檔（`~/.byok/config.yaml`、`~/.codex/config.toml`）、profile 解析錯誤印訊息並 exit 1、預設 provider 為 `openai`、測試以 `go test ./... -race` 執行（實作 AGENTS.md documents development conventions）。驗證：`AGENTS.md` 含此區塊且各條與既有行為一致。
-- [ ] 7.3 在「開發規範」之後新增明確維護規則：任何改變套件結構、BYOK 注入機制、設定檔格式、CLI 介面或已記錄開發規範的變更，須在相同變更內更新 `AGENTS.md` 對應段落；Spectra 區塊由 CLI 管理不得手動編輯（實作 AGENTS.md maintenance rule）。驗證：`AGENTS.md` 含維護規則文字且明確標示 Spectra 區塊不得手改。
+- [x] 7.1 在 `AGENTS.md` 既有 Spectra 區塊（`<!-- SPECTRA:END -->`）之後新增「專案架構」區塊，內容取自現有原始碼事實：Go 1.26+ cobra CLI、模組路徑 `github.com/IISI-2209026/LlmByok`、入口 `main.go`、`cmd`（cobra 指令與目標分派）/`internal/config`（YAML profile 載入儲存）/`internal/runner`（BYOK 環境建置與子程序啟動）/`internal/version`（版本嵌入）套件職責、設定檔位置 `~/.byok/config.yaml`（實作 AGENTS.md documents project architecture）（對應設計 Decision: AGENTS.md 作為架構與規範的權威文件並隨變更同步）。驗證：`AGENTS.md` 含此區塊且所述套件/路徑與原始碼一致。
+- [x] 7.2 在「專案架構」之後新增「開發規範」區塊：BYOK 注入僅作用於子程序（父程序與 shell 環境不變）、不寫入使用者設定檔（`~/.byok/config.yaml`、`~/.codex/config.toml`）、profile 解析錯誤印訊息並 exit 1、預設 provider 為 `openai`、測試以 `go test ./... -race` 執行（實作 AGENTS.md documents development conventions）。驗證：`AGENTS.md` 含此區塊且各條與既有行為一致。
+- [x] 7.3 在「開發規範」之後新增明確維護規則：任何改變套件結構、BYOK 注入機制、設定檔格式、CLI 介面或已記錄開發規範的變更，須在相同變更內更新 `AGENTS.md` 對應段落；Spectra 區塊由 CLI 管理不得手動編輯（實作 AGENTS.md maintenance rule）。驗證：`AGENTS.md` 含維護規則文字且明確標示 Spectra 區塊不得手改。
 
 ## 8. 整體驗證
 

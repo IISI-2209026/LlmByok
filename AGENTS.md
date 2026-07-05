@@ -26,3 +26,43 @@ discuss? → propose → apply ⇄ ingest → archive
 Changes can be parked（暫存）— temporarily moved out of `openspec/changes/`. Parked changes won't appear in `spectra list` but can be found with `spectra list --parked`. To restore: `spectra unpark <name>`. The `$spectra-apply` and `$spectra-ingest` skills handle parked changes automatically.
 
 <!-- SPECTRA:END -->
+
+# 專案架構
+
+`byok` 是一支以 Go 1.26+ 與 [cobra](https://github.com/spf13/cobra) 建構的命令列工具，模組路徑為 `github.com/IISI-2209026/LlmByok`，入口為 `main.go`。它以 BYOK（Bring Your Own Key）profile 暫時啟動 Copilot 或 Codex CLI，不修改父程序環境或使用者設定檔。
+
+## 套件職責
+
+| 套件                 | 職責                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
+| `main`               | 程式入口，讀取嵌入版本並交由 `cmd.NewRoot` 建立根指令。                |
+| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex`）、`config` 子指令。 |
+| `internal/config`    | YAML profile 的載入、儲存與驗證；設定檔預設位於 `~/.byok/config.yaml`。 |
+| `internal/runner`    | BYOK 環境變數建置與子程序啟動（`Launch` for copilot、`LaunchCodex` for codex）。 |
+| `internal/version`   | 版本號嵌入（透過 ldflags 注入）。                                      |
+
+## 設定檔
+
+- 設定檔位置：`~/.byok/config.yaml`（可用 `--config` 覆寫）。
+- 每個 profile 包含 `name`、`provider`、`api_base`、`api_key`、`default_model`。
+- 預設 provider 為 `openai`（空字串回退為 `openai`）；首版僅支援 `openai` provider 類型。
+
+# 開發規範
+
+- **BYOK 注入僅作用於子程序** — 環境變數只注入到 `copilot` / `codex` 子行程，父程序（Shell）與系統環境永不被改變。
+- **不寫入使用者設定檔** — `byok` 不會修改 `~/.byok/config.yaml`、`~/.codex/config.toml` 或任何 Copilot/Codex 設定檔；codex 連線覆寫僅透過命令列 `--config` 旗標傳遞。
+- **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。
+- **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
+- **測試以 `go test ./... -race` 執行** — 新增功能須伴隨單元/整合測試，並以 `-race` 確認無資料競爭。
+
+# 維護規則
+
+任何改變以下項目的變更，**必須在相同變更內更新 `AGENTS.md` 對應段落**：
+
+- 套件結構（新增/移除/重新命名套件、變更套件職責）
+- BYOK 注入機制（環境變數名稱、`--config` 覆寫格式、子程序啟動方式）
+- 設定檔格式（`~/.byok/config.yaml` 欄位、預設路徑）
+- CLI 介面（指令、旗標、位置參數、錯誤訊息）
+- 已記錄於「開發規範」的行為
+
+> ⚠ Spectra 區塊（`<!-- SPECTRA:START -->` 至 `<!-- SPECTRA:END -->`）由 Spectra CLI 自動管理，**不得手動編輯**。
