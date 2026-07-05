@@ -19,31 +19,39 @@ func newLaunchCmd() *cobra.Command {
 	var model, profileName, cfgPath string
 	var yolo bool
 	c := &cobra.Command{
-		Use:   "launch copilot",
-		Short: "以 BYOK profile 啟動 Copilot CLI（暫時注入環境變數）",
-		Long: `以設定檔中的 profile 將 BYOK 環境變數注入後啟動 Copilot CLI。
-注入為暫時性：僅修改 copilot 子程序環境；父程序 byok 與您的
-shell 環境永不被改變。
+		Use:   "launch <target>",
+		Short: "以 BYOK profile 啟動 Copilot 或 Codex CLI（暫時注入環境變數）",
+		Long: `以設定檔中的 profile 啟動指定的目標 CLI，並將 BYOK 設定暫時
+注入子程序環境。父程序 byok 與您的 shell 環境永不被改變。
+
+目標工具（第一位置參數）：
+  copilot  以 BYOK profile 啟動 GitHub Copilot CLI
+  codex    以 BYOK profile 啟動 OpenAI Codex CLI
 
 首版僅支援 openai provider 類型。
 
-使用 -y / --yolo 快速啟用 copilot 的 yolo 模式；
-使用 -- 透傳任意參數給 copilot，例如：
-  byok launch copilot -y -- --continue`,
+使用 -y / --yolo 啟用目標工具的 yolo 模式；
+使用 -- 透傳任意參數給目標工具，例如：
+  byok launch copilot -y -- --continue
+  byok launch codex -y -- exec`,
 		// 接受目標工具名稱（第一位置參數）與 -- 之後的透傳參數。
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定要啟動的工具（目前僅支援 copilot）\n")
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex）\n")
 				return errExit
 			}
 			target := args[0]
-			if target != "copilot" {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前僅支援 copilot）\n", target)
+			extraArgs := buildExtraArgs(yolo, args[1:])
+			switch target {
+			case "copilot":
+				return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			case "codex":
+				return runLaunchCodex(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			default:
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex）\n", target)
 				return errExit
 			}
-			extraArgs := buildExtraArgs(yolo, args[1:])
-			return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.OutOrStderr())
 		},
 		SilenceUsage: true,
 	}
