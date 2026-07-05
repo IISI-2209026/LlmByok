@@ -273,6 +273,45 @@ byok config remove --name local-ollama
 byok config set-default --name local-ollama
 ```
 
+## 版本管理
+
+byok 使用 [Semantic Versioning](https://semver.org/)（`MAJOR.MINOR.PATCH`）管理版本號。
+
+### `byok version`
+
+顯示當前版本號。
+
+```bash
+byok version
+# 輸出：byok version 0.1.0
+```
+
+### 版本號更新流程
+
+版本號定義於 `internal/version/version.go`，預設值為 `dev`。每次開發完成合併回 `main` 分支前：
+
+1. 編輯 `internal/version/version.go`，將 `Version` 更新為新版本號（如 `"0.1.0"` → `"0.1.1"`）
+2. 提交變更並合併至 `main` 分支
+3. GitHub Actions 會自動建置多平台執行檔並發布至 GitHub Release
+
+### 自動發布
+
+push 至 `main` 分支時，`.github/workflows/release.yml` 會：
+
+1. 讀取 `internal/version/version.go` 中的版本號
+2. 以 matrix 策略平行建置四個平台執行檔：
+   - `windows/amd64`（zip）
+   - `linux/amd64`（tar.gz）
+   - `darwin/amd64`（tar.gz）
+   - `darwin/arm64`（tar.gz）
+3. 使用 `softprops/action-gh-release` 建立 GitHub Release，以版本號為 git tag，並附加所有平台壓縮檔
+
+建置時透過 Go ldflags 注入版本號：
+
+```bash
+go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok .
+```
+
 ## 運作原理（暫時性注入）
 
 執行 `byok launch copilot` 時，`byok` 會複製當前行程的環境，**只**在這份副本中覆寫四個 `COPILOT_*` 變數（`COPILOT_PROVIDER_BASE_URL`、`COPILOT_PROVIDER_TYPE`、`COPILOT_PROVIDER_API_KEY`、`COPILOT_MODEL`），然後以這份修改後的環境啟動 `copilot` 作為子行程。父行程（你的 Shell）的環境永遠不會被修改 — 一旦 `copilot` 子行程結束，一切恢復原狀，因此平常使用 GitHub 託管模型的 Copilot 體驗完全不受影響。
