@@ -14,8 +14,8 @@
 
 ## 4. AGENTS.md 與 README 文件
 
-- [ ] 4.1 在 `AGENTS.md` 新增「版本號機制」區塊（位於開發規範之後）：說明 canonical base 來源為 `internal/version/version.go`、develop 二進位版號與 tag 為 `<base>-dev.<run_number>`、main 為 `<base>`/`v<base>`、晉升流程（merge develop→main 觸發穩定發布 → 於 develop 執行 `byok-bump-version` skill 跳下一版 → push 到 develop）（實作 Version bump mechanism documented in AGENTS.md and README）（對應設計 Decision: 版號晉升流程為「merge develop→main 觸發穩定發布 → 於 develop 執行 bump skill 跳下一版」）。驗證：`AGENTS.md` 含此區塊且流程步驟完整。
-- [ ] 4.2 在 `README.md` 新增「版本號與發布流程」段落：說明 develop 預發布（`v<base>-dev.<run_number>`，prerelease）、main 穩定發布（`v<base>`）、如何使用 `byok-bump-version` skill 晉升版號（預設 patch，可選 minor/major，執行後 commit 並 push 到 develop）（實作 Version bump mechanism documented in AGENTS.md and README）。驗證：`README.md` 含此段落且步驟可複製執行。
+- [x] 4.1 在 `AGENTS.md` 新增「版本號機制」區塊（位於開發規範之後）：說明 canonical base 來源為 `internal/version/version.go`、develop 二進位版號與 tag 為 `<base>-dev.<run_number>`、main 為 `<base>`/`v<base>`、晉升流程（merge develop→main 觸發穩定發布 → 於 develop 執行 `byok-bump-version` skill 跳下一版 → push 到 develop）（實作 Version bump mechanism documented in AGENTS.md and README）（對應設計 Decision: 版號晉升流程為「merge develop→main 觸發穩定發布 → 於 develop 執行 bump skill 跳下一版」）。驗證：`AGENTS.md` 含此區塊且流程步驟完整。
+- [x] 4.2 在 `README.md` 新增「版本號與發布流程」段落：說明 develop 預發布（`v<base>-dev.<run_number>`，prerelease）、main 穩定發布（`v<base>`）、如何使用 `byok-bump-version` skill 晉升版號（預設 patch，可選 minor/major，執行後 commit 並 push 到 develop）（實作 Version bump mechanism documented in AGENTS.md and README）。驗證：`README.md` 含此段落且步驟可複製執行。
 
 ## 5. 整體驗證
 

@@ -322,27 +322,44 @@ byok --version
 # 輸出：byok version 0.1.0
 ```
 
-### 版本號更新流程
+### Canonical base 版號
 
-版本號定義於 `internal/version/version.go`，預設值為 `dev`。每次開發完成合併回 `main` 分支前：
+版號的唯一來源（canonical base）為 `internal/version/version.go` 的 `Version` 字面值（semver、無 `v` prefix、無後綴），目前為 `0.1.0`。Makefile 與 Release workflow 皆以 `sed` 讀取此字面值，不引入額外 VERSION 檔或以 Git tag 為來源。
 
-1. 編輯 `internal/version/version.go`，將 `Version` 更新為新版本號（如 `"0.1.0"` → `"0.1.1"`）
-2. 提交變更並合併至 `main` 分支
-3. GitHub Actions 會自動建置多平台執行檔並發布至 GitHub Release
+### 版本號與發布流程
+
+- **develop 預發布**：推送 develop → Release workflow 產生預發布，二進位版號 `<base>-dev.<run_number>`、tag `v<base>-dev.<run_number>`（如 `0.1.0-dev.42` / `v0.1.0-dev.42`）、標記為 prerelease。`run_number` 取自 GitHub Actions `github.run_number`，確保每次推送產生唯一 tag、不再撞 tag。
+- **main 穩定發布**：推送 main → Release workflow 產生穩定發布，二進位版號 `<base>`、tag `v<base>`（如 `0.1.0` / `v0.1.0`）。
+- **晉升流程**：
+  1. develop 累積預發布至可發布狀態。
+  2. merge develop → main 並推送 main → Release workflow 自動產生穩定發布 `v<base>`。
+  3. 於 develop 執行 `byok-bump-version` skill 將 base 晉升到下一個 patch（預設；可選 minor/major）。
+  4. push 到 develop，使下一輪預發布使用更高的 base（如 `0.1.1-dev.N`），下一輪 main 發布即為 `0.1.1`。
+
+### `byok-bump-version` skill
+
+以 Copilot CLI skill `.github/skills/byok-bump-version/SKILL.md` 晉升版號：
+
+- 預設 **patch**（`0.1.0` → `0.1.1`），可指定 **minor**（`0.2.0`）或 **major**（`1.0.0`）。
+- 流程：讀取 `internal/version/version.go` → 解析 semver → 計算下一版 → 編輯字面值 → `git add` → commit `chore: bump version to <next>` → `git push origin develop`。
+- 限制：不建立 Git tag（tag 由 Release workflow 於 push 後自動產生）、不 push 到 main、不強推；在 main 分支執行時中止。
 
 ### 自動發布
 
-push 至 `main` 分支時，`.github/workflows/release.yml` 會：
+push 至 `main` 或 `develop` 分支時，`.github/workflows/release.yml` 會：
 
-1. 讀取 `internal/version/version.go` 中的版本號
-2. 以 matrix 策略平行建置四個平台執行檔：
+1. 讀取 `internal/version/version.go` 中的 canonical base 版號
+2. 依分支推導完整版號與 tag：
+   - `main`：`<base>` / `v<base>`（穩定發布）
+   - `develop`：`<base>-dev.<run_number>` / `v<base>-dev.<run_number>`（預發布）
+3. 以 matrix 策略平行建置四個平台執行檔：
    - `windows/amd64`（zip）
    - `linux/amd64`（tar.gz）
    - `darwin/amd64`（tar.gz）
    - `darwin/arm64`（tar.gz）
-3. 使用 `softprops/action-gh-release` 建立 GitHub Release，以版本號為 git tag，並附加所有平台壓縮檔
+4. 使用 `softprops/action-gh-release` 建立 GitHub Release，以版號為 git tag，並附加所有平台壓縮檔
 
-建置時透過 Go ldflags 注入版本號：
+建置時透過 Go ldflags 注入完整版號：
 
 ```bash
 go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok .

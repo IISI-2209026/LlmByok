@@ -55,6 +55,18 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
 - **測試以 `go test ./... -race` 執行** — 新增功能須伴隨單元/整合測試，並以 `-race` 確認無資料競爭。
 
+# 版本號機制
+
+- **Canonical base 來源**：`internal/version/version.go` 的 `Version` 字面值為 canonical base 版號（semver、無 `v` prefix、無後綴），目前為 `0.1.0`。Makefile 與 Release workflow 皆以 `sed` 讀取此字面值，不引入額外 VERSION 檔或以 Git tag 為來源。
+- **develop 預發布**：推送 develop → Release workflow 產生預發布，二進位版號 `<base>-dev.<run_number>`、tag `v<base>-dev.<run_number>`、`prerelease: true`。`run_number` 取自 `github.run_number`，確保每次推送唯一、不撞 tag。
+- **main 穩定發布**：推送 main → Release workflow 產生穩定發布，二進位版號 `<base>`、tag `v<base>`、`prerelease: false`。
+- **晉升流程**：
+  1. develop 累積預發布至可發布狀態。
+  2. merge develop → main 並推送 main → Release workflow 自動產生穩定發布 `v<base>`。
+  3. 於 develop 執行 `byok-bump-version` skill 將 base 晉升到下一個 patch（或 minor/major）。
+  4. push 到 develop，使下一輪預發布使用更高的 base（如 `0.1.1-dev.N`），下一輪 main 發布即為 `0.1.1`。
+- **bump skill**：`.github/skills/byok-bump-version/SKILL.md` 負責 bump + commit + push 到 develop；不建立 Git tag、不 push 到 main、不強推。在 main 分支執行時中止。
+
 # 維護規則
 
 任何改變以下項目的變更，**必須在相同變更內更新 `AGENTS.md` 對應段落**：
