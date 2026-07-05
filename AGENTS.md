@@ -36,9 +36,10 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 | 套件                 | 職責                                                                 |
 | -------------------- | -------------------------------------------------------------------- |
 | `main`               | 程式入口，讀取嵌入版本並交由 `cmd.NewRoot` 建立根指令。                |
-| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex`）、`config` 子指令。 |
+| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex`）、`config` 子指令、`update` 子指令。 |
 | `internal/config`    | YAML profile 的載入、儲存與驗證；設定檔預設位於 `~/.byok/config.yaml`。 |
 | `internal/runner`    | BYOK 環境變數建置與子程序啟動（`Launch` for copilot、`LaunchCodex` for codex）。 |
+| `internal/updater`   | 自我更新：channel 判定、GitHub Releases 查詢、平台資產選擇、下載與跨平台執行檔原子替換。 |
 | `internal/version`   | 版本號嵌入（透過 ldflags 注入）。                                      |
 
 ## 設定檔
@@ -54,6 +55,8 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。
 - **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
 - **測試以 `go test ./... -race` 執行** — 新增功能須伴隨單元/整合測試，並以 `-race` 確認無資料競爭。
+- **`byok update` 自我更新** — `byok update` 依當前版本 channel（含 `-dev.` 為 dev、否則 stable）查詢 GitHub Releases，下載對應平台資產（`byok-<version>-<goos>-<goarch>.<ext>`）並原子替換執行檔。`--check` 只查詢不替換；`--channel prerelease|release` 覆寫 channel 判定。啟動版本檢查：`launch`/`update` 以外子指令完成後以 3 秒 timeout 查詢，較新時在 stderr 印提示；`BYOK_NO_UPDATE_CHECK=1` 停用；任何錯誤靜默不影響 exit code。
+- **Release changelog 以 conventional commit 分類產生** — Release workflow 於建立 GitHub Release 前以 `git log` 取 commit subject，依 prefix 分類（`feat:` → 新增功能、`refactor:`/`perf:` → 優化功能、`fix:` → 修復功能）輸出 Markdown 至 `changelog.md`，作為 release body。
 
 # 版本號機制
 
