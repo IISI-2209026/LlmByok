@@ -36,4 +36,4 @@
 
 ## 8. 整體驗證
 
-- [ ] 8.1 執行 `go vet ./...` 與 `go test ./... -race -coverprofile=coverage.out`，確認全部通過且無退化。驗證：指令結束碼為 0，coverage 產出。
+- [x] 8.1 執行 `go vet ./...` 與 `go test ./... -race -coverprofile=coverage.out`，確認全部通過且無退化。驗證：指令結束碼為 0，coverage 產出。

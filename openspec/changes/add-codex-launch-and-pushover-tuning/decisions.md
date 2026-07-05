@@ -37,3 +37,7 @@
 ## D8：第二個 change 的分支策略
 - 問題：兩個 change 是否應在同一分支或各自分支？
 - 決定：兩個 change 已在 `feat/add-codex-launch` 分支上；為了能發單一 PR 涵蓋兩個 change，統一在此分支完成兩個 change 後再發 PR。若使用者要求分開 PR 再分割。
+
+## D9：`-race` 在本機 Windows 環境不可用
+- 問題：Task 8.1 指定 `go test ./... -race -coverprofile=coverage.out`，但本機 Windows 環境 CGO 未啟用（無 C 工具鏈），`-race` 失敗。
+- 決定：本機改執行 `go vet ./...` + `go test ./... -coverprofile=coverage.out`（不含 `-race`）；`-race` 由 CI workflow `pr-test.yml` 在 Ubuntu（cgo 可用）上執行，保留 race 保證。
