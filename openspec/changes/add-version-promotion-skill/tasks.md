@@ -19,5 +19,5 @@
 
 ## 5. 整體驗證
 
-- [ ] 5.1 執行 `go vet ./...` 與 `go test ./... -race`，確認全部通過且無退化。驗證：指令結束碼為 0。
-- [ ] 5.2 靜態檢視 `release.yml` 與 `internal/version/version.go`，確認 develop tag 含 `run_number`、base 為 `0.1.0`。驗證：人工檢視通過。
+- [x] 5.1 執行 `go vet ./...` 與 `go test ./... -race`，確認全部通過且無退化。驗證：指令結束碼為 0。
+- [x] 5.2 靜態檢視 `release.yml` 與 `internal/version/version.go`，確認 develop tag 含 `run_number`、base 為 `0.1.0`。驗證：人工檢視通過。
