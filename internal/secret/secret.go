@@ -25,6 +25,13 @@ var ErrNotFound = errors.New("secret: key not found in keychain")
 // （例如 headless Linux 無 secret-service daemon）。
 var ErrBackendUnavailable = errors.New("secret: keychain backend unavailable")
 
+// 以下為可注入的 keychain 操作函式，測試時可替換以模擬失敗情境。
+var (
+	storeFn  = keyring.Set
+	loadFn   = keyring.Get
+	deleteFn = keyring.Delete
+)
+
 // keyName 回傳 profile 在 keychain 中的 key 名稱。
 func keyName(profileName string) string {
 	return keyPrefix + profileName
@@ -33,7 +40,7 @@ func keyName(profileName string) string {
 // Store 將 apiKey 存入 keychain 的 profile:<profileName> 位置。
 // 已存在值會被覆寫。
 func Store(profileName, apiKey string) error {
-	if err := keyring.Set(serviceName, keyName(profileName), apiKey); err != nil {
+	if err := storeFn(serviceName, keyName(profileName), apiKey); err != nil {
 		return fmt.Errorf("%w: %v", ErrBackendUnavailable, err)
 	}
 	return nil
@@ -42,7 +49,7 @@ func Store(profileName, apiKey string) error {
 // Load 自 keychain 讀取 profile:<profileName> 的金鑰。
 // 找不到時回傳 ErrNotFound；backend 不可用時回傳 ErrBackendUnavailable。
 func Load(profileName string) (string, error) {
-	val, err := keyring.Get(serviceName, keyName(profileName))
+	val, err := loadFn(serviceName, keyName(profileName))
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return "", ErrNotFound
@@ -55,7 +62,7 @@ func Load(profileName string) (string, error) {
 // Delete 自 keychain 刪除 profile:<profileName> 的金鑰。
 // 找不到時回傳 ErrNotFound。
 func Delete(profileName string) error {
-	if err := keyring.Delete(serviceName, keyName(profileName)); err != nil {
+	if err := deleteFn(serviceName, keyName(profileName)); err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
 			return ErrNotFound
 		}
@@ -67,7 +74,7 @@ func Delete(profileName string) error {
 // Exists 檢查 keychain 中是否存在 profile:<profileName> 的金鑰。
 // backend 不可用時回傳 false 與 ErrBackendUnavailable。
 func Exists(profileName string) (bool, error) {
-	_, err := keyring.Get(serviceName, keyName(profileName))
+	_, err := loadFn(serviceName, keyName(profileName))
 	if err == nil {
 		return true, nil
 	}

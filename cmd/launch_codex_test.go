@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 )
 
 // TestLaunchCodex_MissingConfigFile 驗證設定檔不存在時印出提示並 exit 1。
@@ -110,6 +112,7 @@ func TestLaunchCodex_ParentEnvUnchanged(t *testing.T) {
 // TestLaunchCodex_ExtraArgsOrder 驗證 extraArgs（--yolo 與透傳）原樣轉發
 // 給 runner.LaunchCodex。以可注入的 fake launcher 攔截參數。
 func TestLaunchCodex_ExtraArgsOrder(t *testing.T) {
+	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
 
@@ -152,6 +155,7 @@ func TestLaunchCodex_ExtraArgsOrder(t *testing.T) {
 
 // TestLaunchCodex_ConfigArgsContent 驗證 --config 覆寫內容含正確 model 與 base_url。
 func TestLaunchCodex_ConfigArgsContent(t *testing.T) {
+	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
 

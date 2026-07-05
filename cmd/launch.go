@@ -139,7 +139,16 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 		return errExit
 	}
 
-	// 6. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
+	// 6. 解析 API 金鑰（keychain 優先、明碼 fallback）。
+	apiKey, _, err := config.Resolver.Resolve(*profile)
+	if err != nil {
+		fmt.Fprintf(stderr, "錯誤：找不到 profile %q 的金鑰（keychain 與設定檔皆無）\n", profile.Name)
+		fmt.Fprintf(stderr, "提示：執行 `byok config set-key %s` 將金鑰存入 keychain\n", profile.Name)
+		return errExit
+	}
+	profile.APIKey = apiKey
+
+	// 7. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
 	if err := runner.Launch(profile, model, resolved, extraArgs, os.Stdin, os.Stdout, os.Stderr); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
