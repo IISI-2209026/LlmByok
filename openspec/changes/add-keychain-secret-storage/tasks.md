@@ -1,7 +1,7 @@
 ## 1. 依賴與專案佈局
 
-- [ ] [P] 1.1 新增 `github.com/zalando/go-keyring` 與 `golang.org/x/term` 至 go.mod 並執行 `go mod tidy`，使專案可取得 keychain 與終端密碼讀取相依。驗證：`go build ./...` 成功且 go.sum 已更新。
-- [ ] [P] 1.2 專案佈局：main package 移至 cmd/byok/ — 以 `git mv main.go cmd/byok/main.go` 移動入口，內容不變（package main、呼叫 `cmd.NewRoot`），使裸 `go build ./cmd/byok` 預設輸出 `byok`（Windows 為 `byok.exe`）。驗證：`go build ./cmd/byok` 產出檔名為 `byok`，且 `go run ./cmd/byok config list` 可正常執行。
+- [x] [P] 1.1 新增 `github.com/zalando/go-keyring` 與 `golang.org/x/term` 至 go.mod 並執行 `go mod tidy`，使專案可取得 keychain 與終端密碼讀取相依。驗證：`go build ./...` 成功且 go.sum 已更新。
+- [x] [P] 1.2 專案佈局：main package 移至 cmd/byok/ — 以 `git mv main.go cmd/byok/main.go` 移動入口，內容不變（package main、呼叫 `cmd.NewRoot`），使裸 `go build ./cmd/byok` 預設輸出 `byok`（Windows 為 `byok.exe`）。驗證：`go build ./cmd/byok` 產出檔名為 `byok`，且 `go run ./cmd/byok config list` 可正常執行。
 
 ## 2. internal/secret 套件
 
