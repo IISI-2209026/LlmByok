@@ -49,9 +49,9 @@ jobs:
               TAG="v${VERSION}"
               ;;
             refs/heads/develop)
-              SUFFIX="-dev"
+              SUFFIX="-dev.${{ github.run_number }}"
               PRERELEASE="true"
-              TAG="v${VERSION}-dev"
+              TAG="v${VERSION}-dev.${{ github.run_number }}"
               ;;
             *)
               SUFFIX=""
@@ -106,9 +106,9 @@ jobs:
               TAG="v${VERSION}"
               ;;
             refs/heads/develop)
-              SUFFIX="-dev"
+              SUFFIX="-dev.${{ github.run_number }}"
               PRERELEASE="true"
-              TAG="v${VERSION}-dev"
+              TAG="v${VERSION}-dev.${{ github.run_number }}"
               ;;
             *)
               SUFFIX=""
@@ -149,7 +149,7 @@ jobs:
           SUFFIX=""
           case "${{ github.ref }}" in
             refs/heads/develop)
-              SUFFIX="-dev"
+              SUFFIX="-dev.${{ github.run_number }}"
               ;;
           esac
           echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"

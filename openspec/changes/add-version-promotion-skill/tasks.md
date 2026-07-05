@@ -4,8 +4,8 @@
 
 ## 2. Release workflow develop tag 唯一化
 
-- [ ] 2.1 修改 `.github/workflows/release.yml` 三個 job（build/release/notify）的「Read version」步驟：develop 分支 `SUFFIX="-dev.${{ github.run_number }}"`、`TAG="v${VERSION}-dev.${{ github.run_number }}"`、`PRERELEASE="true"`；main 維持 `SUFFIX=""`、`TAG="v${VERSION}"`、`PRERELEASE="false"`（實作 Branch-specific release tag and prerelease flag 與 Branch-specific binary version string format）（對應設計 Decision: develop 預發布版號為 `<base>-dev.<run_number>`）。驗證：YAML 靜態檢視確認 develop tag 含 `${{ github.run_number }}`、main 不含；`full_version` 在 develop 為 `<base>-dev.<run_number>`。
-- [ ] 2.2 確認 build 步驟 ldflags 注入的 `full_version` 在 develop 為 `<base>-dev.<run_number>`、main 為 `<base>`，產物命名隨之正確。驗證：YAML 靜態檢視確認 `-ldflags ...Version=${{ steps.version.outputs.full_version }}` 與產物檔名使用 `full_version`。
+- [x] 2.1 修改 `.github/workflows/release.yml` 三個 job（build/release/notify）的「Read version」步驟：develop 分支 `SUFFIX="-dev.${{ github.run_number }}"`、`TAG="v${VERSION}-dev.${{ github.run_number }}"`、`PRERELEASE="true"`；main 維持 `SUFFIX=""`、`TAG="v${VERSION}"`、`PRERELEASE="false"`（實作 Branch-specific release tag and prerelease flag 與 Branch-specific binary version string format）（對應設計 Decision: develop 預發布版號為 `<base>-dev.<run_number>`）。驗證：YAML 靜態檢視確認 develop tag 含 `${{ github.run_number }}`、main 不含；`full_version` 在 develop 為 `<base>-dev.<run_number>`。
+- [x] 2.2 確認 build 步驟 ldflags 注入的 `full_version` 在 develop 為 `<base>-dev.<run_number>`、main 為 `<base>`，產物命名隨之正確。驗證：YAML 靜態檢視確認 `-ldflags ...Version=${{ steps.version.outputs.full_version }}` 與產物檔名使用 `full_version`。
 
 ## 3. Bump skill
 
