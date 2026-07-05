@@ -73,8 +73,11 @@ func BuildEnv(profile *config.Profile, modelOverride string) []string {
 //
 // exePath 必須為絕對路徑或可於 PATH 中解析的名稱；呼叫端通常在
 // 呼叫 Launch 前先以 exec.LookPath 解析之。
-func Launch(profile *config.Profile, modelOverride, exePath string, stdin io.Reader, stdout, stderr io.Writer) error {
-	cmd := exec.Command(exePath)
+//
+// extraArgs 會原樣附加為子程序的命令列參數；傳入 nil 或空切片
+// 時不附加任何參數（與舊版行為一致）。
+func Launch(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	cmd := exec.Command(exePath, extraArgs...)
 	cmd.Env = BuildEnv(profile, modelOverride)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout

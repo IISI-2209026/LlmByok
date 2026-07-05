@@ -23,4 +23,11 @@ func main() {
 	env := append([]string(nil), os.Environ()...)
 	sort.Strings(env)
 	_ = os.WriteFile(out, []byte(strings.Join(env, "\n")), 0600)
+
+	// 若指定了參數輸出檔，則將命令列參數（每行一個）寫入，
+	// 讓測試能驗證 extraArgs 是否正確轉發給子程序。
+	argsOut := os.Getenv("BYOK_STUB_ARGS_OUT")
+	if argsOut != "" {
+		_ = os.WriteFile(argsOut, []byte(strings.Join(os.Args[1:], "\n")), 0600)
+	}
 }

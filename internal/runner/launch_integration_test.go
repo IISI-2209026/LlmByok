@@ -38,7 +38,7 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "glm-5.2", stub, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "glm-5.2", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -74,6 +74,99 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 	// 非 BYOK 標記也必須傳遞給子程序。
 	if got := envLookup(childEnv, "BYOK_PARENT_MARKER"); got != "before" {
 		t.Errorf("child BYOK_PARENT_MARKER = %q, want %q (preserved vars should reach child)", got, "before")
+	}
+}
+
+// TestLaunchIntegration_ExtraArgsForwarded 驗證 Launch 將 extraArgs
+// 原樣轉發給子程序作為命令列參數，同時父程序環境保持不變。
+func TestLaunchIntegration_ExtraArgsForwarded(t *testing.T) {
+	stub := buildStub(t, filepath.Join("testdata", "stub"))
+
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+	t.Setenv("BYOK_PARENT_MARKER", "before")
+
+	parentBefore := snapshotEnv()
+
+	profile := &config.Profile{
+		Name:         "openai-official",
+		Provider:     "openai",
+		APIBase:      "https://api.openai.com/v1",
+		APIKey:       "sk-test-integration",
+		DefaultModel: "gpt-4o",
+	}
+
+	extraArgs := []string{"--yolo", "--continue", "--model", "x"}
+
+	var stdout, stderr strings.Builder
+	if err := Launch(profile, "glm-5.2", stub, extraArgs, nil, &stdout, &stderr); err != nil {
+		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
+	}
+
+	// 父程序環境必須保持不變。
+	parentAfter := snapshotEnv()
+	if !envEqual(parentBefore, parentAfter) {
+		t.Fatalf("parent environment changed after launch\nbefore:\n%s\nafter:\n%s",
+			strings.Join(parentBefore, "\n"), strings.Join(parentAfter, "\n"))
+	}
+
+	// 驗證 extraArgs 原樣轉發給子程序。
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args output: %v", err)
+	}
+	gotArgs := strings.Split(string(data), "\n")
+	// 空白行過濾
+	var got []string
+	for _, a := range gotArgs {
+		if a != "" {
+			got = append(got, a)
+		}
+	}
+	if len(got) != len(extraArgs) {
+		t.Fatalf("child received %d args, want %d: %v", len(got), len(extraArgs), got)
+	}
+	for i, want := range extraArgs {
+		if got[i] != want {
+			t.Errorf("child arg[%d] = %q, want %q", i, got[i], want)
+		}
+	}
+}
+
+// TestLaunchIntegration_NoExtraArgs 驗證不傳 extraArgs 時子程序
+// 收到零命令列參數，行為與舊版一致。
+func TestLaunchIntegration_NoExtraArgs(t *testing.T) {
+	stub := buildStub(t, filepath.Join("testdata", "stub"))
+
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	profile := &config.Profile{
+		Name:         "openai-official",
+		Provider:     "openai",
+		APIBase:      "https://api.openai.com/v1",
+		APIKey:       "sk-test-integration",
+		DefaultModel: "gpt-4o",
+	}
+
+	var stdout, stderr strings.Builder
+	if err := Launch(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
+	}
+
+	// 不傳 extraArgs 時，參數輸出檔應為空（零命令列參數）。
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args output: %v", err)
+	}
+	if len(strings.TrimSpace(string(data))) > 0 {
+		t.Errorf("expected zero args, got: %s", string(data))
 	}
 }
 

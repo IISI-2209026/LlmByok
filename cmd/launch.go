@@ -17,6 +17,7 @@ const copilotBinary = "copilot"
 
 func newLaunchCmd() *cobra.Command {
 	var model, profileName, cfgPath string
+	var yolo bool
 	c := &cobra.Command{
 		Use:   "launch copilot",
 		Short: "以 BYOK profile 啟動 Copilot CLI（暫時注入環境變數）",
@@ -24,9 +25,25 @@ func newLaunchCmd() *cobra.Command {
 注入為暫時性：僅修改 copilot 子程序環境；父程序 byok 與您的
 shell 環境永不被改變。
 
-首版僅支援 openai provider 類型。`,
+首版僅支援 openai provider 類型。
+
+使用 -y / --yolo 快速啟用 copilot 的 yolo 模式；
+使用 -- 透傳任意參數給 copilot，例如：
+  byok launch copilot -y -- --continue`,
+		// 接受目標工具名稱（第一位置參數）與 -- 之後的透傳參數。
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLaunchCopilot(cfgPath, profileName, model, cmd.OutOrStdout(), cmd.OutOrStderr())
+			if len(args) == 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定要啟動的工具（目前僅支援 copilot）\n")
+				return errExit
+			}
+			target := args[0]
+			if target != "copilot" {
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前僅支援 copilot）\n", target)
+				return errExit
+			}
+			extraArgs := buildExtraArgs(yolo, args[1:])
+			return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.OutOrStderr())
 		},
 		SilenceUsage: true,
 	}
@@ -35,10 +52,11 @@ shell 環境永不被改變。
 	c.Flags().StringVar(&model, "model", "", "覆寫 profile 的預設模型")
 	c.Flags().StringVar(&profileName, "profile", "", "要使用的 profile 名稱（預設使用 default_profile）")
 	c.Flags().StringVar(&cfgPath, "config", "", "設定檔路徑（預設為 ~/.byok/config.yaml）")
+	c.Flags().BoolVarP(&yolo, "yolo", "y", false, "啟用 copilot 的 yolo 模式（等同附加 --yolo）")
 	return c
 }
 
-func runLaunchCopilot(cfgPath, profileName, model string, stdout, stderr io.Writer) error {
+func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer) error {
 	// 1. 解析設定檔路徑。
 	path, err := configPath(cfgPath)
 	if err != nil {
@@ -104,9 +122,9 @@ func runLaunchCopilot(cfgPath, profileName, model string, stdout, stderr io.Writ
 	}
 
 	// 6. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
-	if err := runner.Launch(profile, model, resolved, os.Stdin, os.Stdout, os.Stderr); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			fmt.Fprintf(stderr, "copilot 結束代碼 %d\n", exitErr.ExitCode())
+	if err := runner.Launch(profile, model, resolved, extraArgs, os.Stdin, os.Stdout, os.Stderr); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit
 		}
 		fmt.Fprintf(stderr, "錯誤：執行 copilot 失敗: %v\n", err)
@@ -122,4 +140,15 @@ func availableProfileNames(profiles []config.Profile) []string {
 		names = append(names, p.Name)
 	}
 	return names
+}
+
+// buildExtraArgs 組合 yolo 旗標與透傳參數為 extraArgs。
+// yolo 旗標在前，透傳參數在後；兩者皆空時回傳 nil。
+func buildExtraArgs(yolo bool, args []string) []string {
+	var extraArgs []string
+	if yolo {
+		extraArgs = append(extraArgs, "--yolo")
+	}
+	extraArgs = append(extraArgs, args...)
+	return extraArgs
 }

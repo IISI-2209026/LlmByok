@@ -11,7 +11,7 @@ import (
 func TestLaunch_MissingConfigFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "does-not-exist.yaml")
 	var stdout, stderr bytes.Buffer
-	err := runLaunchCopilot(path, "", "", &stdout, &stderr)
+	err := runLaunchCopilot(path, "", "", nil, &stdout, &stderr)
 	if err != errExit {
 		t.Fatalf("err = %v, want errExit", err)
 	}
@@ -27,7 +27,7 @@ func TestLaunch_MissingProfile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\n  - name: local-ollama\n    provider: openai\n    api_base: http://localhost:11434\n    api_key: \"\"\n    default_model: llama3.2\ndefault_profile: openai-official\n")
 	var stdout, stderr bytes.Buffer
-	err := runLaunchCopilot(path, "nonexistent", "", &stdout, &stderr)
+	err := runLaunchCopilot(path, "nonexistent", "", nil, &stdout, &stderr)
 	if err != errExit {
 		t.Fatalf("err = %v, want errExit", err)
 	}
@@ -43,7 +43,7 @@ func TestLaunch_NonOpenaiProviderRejected(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "profiles:\n  - name: azure-prod\n    provider: azure\n    api_base: https://example.openai.azure.com\n    api_key: az-key\n    default_model: gpt-4o\ndefault_profile: azure-prod\n")
 	var stdout, stderr bytes.Buffer
-	err := runLaunchCopilot(path, "", "", &stdout, &stderr)
+	err := runLaunchCopilot(path, "", "", nil, &stdout, &stderr)
 	if err != errExit {
 		t.Fatalf("err = %v, want errExit", err)
 	}
@@ -59,7 +59,7 @@ func TestLaunch_CustomConfigPath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "custom.yaml")
 	writeFile(t, path, "profiles:\n  - name: azure-prod\n    provider: azure\n    api_base: https://example.openai.azure.com\n    api_key: az-key\n    default_model: gpt-4o\ndefault_profile: azure-prod\n")
 	var stdout, stderr bytes.Buffer
-	err := runLaunchCopilot(path, "", "", &stdout, &stderr)
+	err := runLaunchCopilot(path, "", "", nil, &stdout, &stderr)
 	if err != errExit {
 		t.Fatalf("err = %v, want errExit (custom path not honored?)", err)
 	}
@@ -79,7 +79,7 @@ func TestLaunch_CopilotNotInstalled(t *testing.T) {
 	// CWD 指向暫存目錄。
 	t.Setenv("PATH", "")
 	var stdout, stderr bytes.Buffer
-	err := runLaunchCopilot(path, "", "", &stdout, &stderr)
+	err := runLaunchCopilot(path, "", "", nil, &stdout, &stderr)
 	if err != errExit {
 		t.Fatalf("err = %v, want errExit", err)
 	}
@@ -102,7 +102,7 @@ func TestLaunch_ParentEnvUnchanged(t *testing.T) {
 	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
 	t.Setenv("PATH", "")
 	var stdout, stderr bytes.Buffer
-	_ = runLaunchCopilot(path, "", "", &stdout, &stderr)
+	_ = runLaunchCopilot(path, "", "", nil, &stdout, &stderr)
 	if got := envLookupOS("BYOK_PARENT_CHECK"); got != "intact" {
 		t.Errorf("parent BYOK_PARENT_CHECK = %q, want %q (parent env must be untouched)", got, "intact")
 	}
@@ -119,4 +119,68 @@ func envLookupOS(key string) string {
 		}
 	}
 	return ""
+}
+
+// TestBuildExtraArgs_YoloFlag 驗證 yolo 旗標為 true 時附加 --yolo。
+func TestBuildExtraArgs_YoloFlag(t *testing.T) {
+	got := buildExtraArgs(true, nil)
+	want := []string{"--yolo"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Errorf("buildExtraArgs(true, nil) = %v, want %v", got, want)
+	}
+}
+
+// TestBuildExtraArgs_YoloShortForm 驗證 -y 短形式與 --yolo 等效。
+func TestBuildExtraArgs_YoloShortForm(t *testing.T) {
+	// -y 在 cobra 層設定 yolo=true，與 --yolo 相同路徑。
+	got := buildExtraArgs(true, nil)
+	if len(got) != 1 || got[0] != "--yolo" {
+		t.Errorf("buildExtraArgs(true, nil) = %v, want [--yolo]", got)
+	}
+}
+
+// TestBuildExtraArgs_SinglePassthrough 驗證透傳單一參數。
+func TestBuildExtraArgs_SinglePassthrough(t *testing.T) {
+	got := buildExtraArgs(false, []string{"--continue"})
+	want := []string{"--continue"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Errorf("buildExtraArgs(false, [--continue]) = %v, want %v", got, want)
+	}
+}
+
+// TestBuildExtraArgs_MultiplePassthrough 驗證透傳多個參數保持順序。
+func TestBuildExtraArgs_MultiplePassthrough(t *testing.T) {
+	got := buildExtraArgs(false, []string{"--continue", "--model", "x"})
+	want := []string{"--continue", "--model", "x"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("got[%d] = %q, want %q", i, got[i], w)
+		}
+	}
+}
+
+// TestBuildExtraArgs_YoloAndPassthrough 驗證 yolo 與透傳合用時
+// --yolo 在前，透傳參數在後。
+func TestBuildExtraArgs_YoloAndPassthrough(t *testing.T) {
+	got := buildExtraArgs(true, []string{"--continue"})
+	want := []string{"--yolo", "--continue"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("got[%d] = %q, want %q", i, got[i], w)
+		}
+	}
+}
+
+// TestBuildExtraArgs_NoArgs 驗證無旗標無透傳時回傳 nil（行為不變）。
+func TestBuildExtraArgs_NoArgs(t *testing.T) {
+	got := buildExtraArgs(false, nil)
+	if got != nil {
+		t.Errorf("buildExtraArgs(false, nil) = %v, want nil", got)
+	}
 }

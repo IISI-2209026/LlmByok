@@ -166,6 +166,8 @@ default_profile: openai-official
 | `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
+| `-y`, `--yolo` | 啟用 copilot 的 yolo 模式（等同附加 `--yolo`）。 |
+| `--`        | 之後的參數原樣透傳給 copilot（不解析、不驗證）。     |
 
 **範例：**
 
@@ -181,6 +183,18 @@ byok launch copilot --profile local-ollama
 
 # 使用自訂設定檔路徑
 byok launch copilot --config /tmp/my-config.yaml --profile openai-official
+
+# 啟用 yolo 模式（-y 為 --yolo 短形式）
+byok launch copilot -y
+
+# 透傳參數給 copilot（-- 之後原樣轉發，例如啟動 copilot skills）
+byok launch copilot -- skills
+
+# 透傳多個參數
+byok launch copilot -- continue --model x
+
+# yolo + 透傳同時使用（--yolo 在前，透傳參數在後）
+byok launch copilot -y -- skills
 ```
 
 ### `byok config add`
