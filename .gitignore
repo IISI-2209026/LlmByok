@@ -1,2 +1,26 @@
 .spectra/
 openspec/.vector-search.db*
+
+# === Go ===
+# 建置產出
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+# Go 測試覆蓋率
+coverage.txt
+coverage.html
+# 本機 go workspace
+go.work
+go.work.sum
+# 執行檔（專案名）
+/byok
+/byok.exe
+# 設定檔可能含金鑰，避免誤提交（僅忽略範例之外的實際設定）
+# 注意：不忽略 README/範本；以下僅忽略使用者實際設定檔
+config.yaml
+config.*.local.yaml
