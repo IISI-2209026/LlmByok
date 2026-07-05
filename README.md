@@ -108,7 +108,7 @@ byok --version
 若已安裝 Go 1.26 以上：
 
 ```bash
-go install github.com/IISI-2209026/LlmByok@latest
+go install github.com/IISI-2209026/LlmByok/cmd/byok@latest
 ```
 
 安裝後執行檔位於 `GOBIN`（預設 `~/go/bin`），確認已加入 `PATH` 後驗證：
@@ -123,10 +123,10 @@ byok --version
 
 ```bash
 # 1. 建置到 ./dist（Windows 會產生 dist\byok.exe；macOS/Linux 產生 dist/byok）
-go build -o dist/byok .
+go build -o dist/byok ./cmd/byok
 
 # 2. 安裝到 GOBIN（之後可在 PATH 任何地方直接執行 `byok`）
-go install .
+go install ./cmd/byok
 
 # 3. 使用 Makefile（輸出同方式 1）
 make build
@@ -139,7 +139,7 @@ make build
 不想建置也可直接執行：
 
 ```bash
-go run main.go <指令> [旗標]
+go run ./cmd/byok <指令> [旗標]
 ```
 
 或執行已建置的執行檔：
@@ -188,6 +188,7 @@ default_profile: openai-official
 - macOS/Linux 可將權限設為 `600`：`chmod 600 ~/.byok/config.yaml`。
 - Windows 可透過檔案內容 > 安全性，將存取權限限制為你的使用者帳戶。
 - 絕對不要把 `~/.byok/config.yaml` commit 到版本控制。
+- **推薦**：使用 `byok config set-key` 或 `byok config import-keys` 將金鑰移至 OS keychain，設定檔中不再保留明碼 `api_key`。
 
 ## 使用說明
 
@@ -322,6 +323,40 @@ byok config remove --name local-ollama
 byok config set-default --name local-ollama
 ```
 
+### 金鑰管理（OS keychain）
+
+`byok` 支援將 API 金鑰儲存於作業系統的 keychain（Windows Credential Manager、macOS Keychain、Linux Secret Service），避免明文寫入設定檔。金鑰以 `profile:<名稱>` 為 key 存入，service 名稱為 `byok`。
+
+`byok launch` 啟動時會自動依以下順序解析金鑰：**keychain 優先 → 設定檔明碼 fallback → 兩者皆無則報錯**。
+
+#### `byok config set-key <profile>`
+
+以互動式密碼提示（不回顯、不留 shell 歷史）輸入金鑰並存入 keychain，同時清除設定檔中的明碼 `api_key`。
+
+```bash
+byok config set-key openai-official
+# 提示：請輸入 API 金鑰（輸入不回顯）：
+```
+
+#### `byok config del-key <profile>`
+
+自 keychain 刪除該 profile 的金鑰。
+
+```bash
+byok config del-key openai-official
+```
+
+#### `byok config import-keys`
+
+將設定檔中所有非空明碼 `api_key` 批次匯入 keychain，成功後清除明碼欄位並回寫設定檔。單一 profile 失敗時記錄並繼續，最後印出失敗清單。
+
+```bash
+byok config import-keys
+# 匯入 2 個金鑰至 keychain
+```
+
+> **Linux 注意事項**：keychain 功能依賴 Secret Service D-Bus API（如 `gnome-keyring` 或 `KWallet`）。若環境中無 secret-service daemon，keychain 操作會回傳 backend-unavailable 錯誤；此時可繼續使用設定檔明碼 `api_key` 作為 fallback。
+
 ### `byok update`
 
 檢查並自我更新 `byok` 至最新 GitHub Release。依當前版本所屬 channel 自動判定查詢範圍（含 `-dev.` 為 dev channel，否則 stable channel），下載對應平台資產並替換當前執行檔。
@@ -398,7 +433,7 @@ push 至 `main` 或 `develop` 分支時，`.github/workflows/release.yml` 會：
 建置時透過 Go ldflags 注入完整版號：
 
 ```bash
-go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok .
+go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok ./cmd/byok
 ```
 
 ## 運作原理（暫時性注入）

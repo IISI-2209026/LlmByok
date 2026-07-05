@@ -24,9 +24,9 @@
 
 ## 5. build/CI/文件同步
 
-- [ ] [P] 5.1 更新建置入口（Build via Makefile 與 release workflow）：Makefile build target 改 `go build -ldflags "$(LDFLAGS)" -o dist/byok ./cmd/byok`、run target 改 `go run ./cmd/byok $(ARGS)`；.github/workflows/release.yml build step 改 `go build -ldflags "..." -o byok ./cmd/byok`，使 Multi-platform build via GitHub Actions matrix 仍產出 byok 二進位。驗證：`make build` 產出 `dist/byok`，且 release.yml build step 指向 `./cmd/byok`（內容審閱）。
-- [ ] [P] 5.2 更新 README.md：安裝指令改 `go install github.com/IISI-2209026/LlmByok/cmd/byok@latest`、建置改 `go build ./cmd/byok`、執行改 `go run ./cmd/byok`，新增金鑰管理區塊說明 set-key/del-key/import-keys 與 Linux 需 secret-service daemon 及明碼 fallback 注意事項，並補齊 README.md with tool overview and Go environment setup guide 所列所有指令說明。驗證：內容審閱確認安裝指令、金鑰管理區塊與 Linux 注意事項齊備。
-- [ ] [P] 5.3 更新 AGENTS.md：套件職責表新增 `internal/secret` 套件、main 位置改 `cmd/byok`、internal/config 職責補充 keychain 金鑰解析；開發規範補充「金鑰以 OS keychain 為主要儲存、明碼 api_key 為 fallback」。驗證：內容審閱確認套件表與開發規範已同步。
+- [x] [P] 5.1 更新建置入口（Build via Makefile 與 release workflow）：Makefile build target 改 `go build -ldflags "$(LDFLAGS)" -o dist/byok ./cmd/byok`、run target 改 `go run ./cmd/byok $(ARGS)`；.github/workflows/release.yml build step 改 `go build -ldflags "..." -o byok ./cmd/byok`，使 Multi-platform build via GitHub Actions matrix 仍產出 byok 二進位。驗證：`make build` 產出 `dist/byok`，且 release.yml build step 指向 `./cmd/byok`（內容審閱）。
+- [x] [P] 5.2 更新 README.md：安裝指令改 `go install github.com/IISI-2209026/LlmByok/cmd/byok@latest`、建置改 `go build ./cmd/byok`、執行改 `go run ./cmd/byok`，新增金鑰管理區塊說明 set-key/del-key/import-keys 與 Linux 需 secret-service daemon 及明碼 fallback 注意事項，並補齊 README.md with tool overview and Go environment setup guide 所列所有指令說明。驗證：內容審閱確認安裝指令、金鑰管理區塊與 Linux 注意事項齊備。
+- [x] [P] 5.3 更新 AGENTS.md：套件職責表新增 `internal/secret` 套件、main 位置改 `cmd/byok`、internal/config 職責補充 keychain 金鑰解析；開發規範補充「金鑰以 OS keychain 為主要儲存、明碼 api_key 為 fallback」。驗證：內容審閱確認套件表與開發規範已同步。
 
 ## 6. 驗證
 

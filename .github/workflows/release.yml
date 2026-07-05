@@ -70,7 +70,7 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o byok .
+          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o byok ./cmd/byok
 
       - name: Package (zip)
         if: matrix.ext == 'zip'
