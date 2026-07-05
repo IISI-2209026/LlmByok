@@ -24,16 +24,12 @@ func newLaunchCmd() *cobra.Command {
 		Long: `以設定檔中的 profile 啟動指定的目標 CLI，並將 BYOK 設定暫時
 注入子程序環境。父程序 byok 與您的 shell 環境永不被改變。
 
-目標工具（第一位置參數）：
-  copilot  以 BYOK profile 啟動 GitHub Copilot CLI
-  codex    以 BYOK profile 啟動 OpenAI Codex CLI
-
-首版僅支援 openai provider 類型。
-
-使用 -y / --yolo 啟用目標工具的 yolo 模式；
-使用 -- 透傳任意參數給目標工具，例如：
+首版僅支援 openai provider 類型。`,
+		Example: `  byok launch copilot
   byok launch copilot -y -- --continue
-  byok launch codex -y -- exec`,
+  byok launch codex
+  byok launch codex -y -- exec
+  byok launch codex --profile my-profile --model gpt-4o`,
 		// 接受目標工具名稱（第一位置參數）與 -- 之後的透傳參數。
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,7 +56,21 @@ func newLaunchCmd() *cobra.Command {
 	c.Flags().StringVar(&model, "model", "", "覆寫 profile 的預設模型")
 	c.Flags().StringVar(&profileName, "profile", "", "要使用的 profile 名稱（預設使用 default_profile）")
 	c.Flags().StringVar(&cfgPath, "config", "", "設定檔路徑（預設為 ~/.byok/config.yaml）")
-	c.Flags().BoolVarP(&yolo, "yolo", "y", false, "啟用 copilot 的 yolo 模式（等同附加 --yolo）")
+	c.Flags().BoolVarP(&yolo, "yolo", "y", false, "啟用目標工具的 yolo 模式（等同附加 --yolo）")
+	// 自訂 usage 模板：Usage → Targets → Flags → Examples。
+	c.SetUsageTemplate(`Usage:
+  {{.UseLine}}
+
+Targets:
+  copilot  以 BYOK profile 啟動 GitHub Copilot CLI
+  codex    以 BYOK profile 啟動 OpenAI Codex CLI
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
+
+Examples:
+{{.Example}}
+`)
 	return c
 }
 
