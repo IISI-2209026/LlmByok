@@ -14,13 +14,12 @@ import (
 func NewRoot(version string) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "byok",
-		Short: "Copilot CLI 的 BYOK（自帶金鑰）啟動器",
-		Long: `byok 暫時將 BYOK（Bring Your Own Key）環境變數注入 Copilot CLI
-子程序，設定來自 ~/.byok/config.yaml 的 YAML 設定檔。父程序
-byok 與您的 shell 環境永不被修改，因此日常 Copilot 使用不受影響。
+		Short: "Copilot、Codex、Claude 的 BYOK（自帶金鑰）啟動器",
+		Long: `byok 暫時將 BYOK（Bring Your Own Key）環境變數注入 Copilot、
+Codex 或 Claude CLI 子程序，設定來自 ~/.byok/config.yaml 的
+YAML 設定檔。父程序 byok 與您的 shell 環境永不被修改。
 
-首版僅支援 Copilot CLI 與 OpenAI 相容端點
-（provider 類型 "openai"）。`,
+首版僅支援 OpenAI 相容端點（provider 類型 "openai"）。`,
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,

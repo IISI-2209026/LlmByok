@@ -20,7 +20,7 @@ func newLaunchCmd() *cobra.Command {
 	var yolo bool
 	c := &cobra.Command{
 		Use:   "launch <target>",
-		Short: "以 BYOK profile 啟動 Copilot 或 Codex CLI（暫時注入環境變數）",
+		Short: "以 BYOK profile 啟動 Copilot、Codex 或 Claude CLI（暫時注入環境變數）",
 		Long: `以設定檔中的 profile 啟動指定的目標 CLI，並將 BYOK 設定暫時
 注入子程序環境。父程序 byok 與您的 shell 環境永不被改變。
 
@@ -29,23 +29,28 @@ func newLaunchCmd() *cobra.Command {
   byok launch copilot -y -- --continue
   byok launch codex
   byok launch codex -y -- exec
-  byok launch codex --profile my-profile --model gpt-4o`,
+  byok launch codex --profile my-profile --model gpt-4o
+  byok launch claude
+  byok launch claude -y
+  byok launch claude --model claude-sonnet-4-5`,
 		// 接受目標工具名稱（第一位置參數）與 -- 之後的透傳參數。
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex）\n")
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex、claude）\n")
 				return errExit
 			}
 			target := args[0]
-			extraArgs := buildExtraArgs(yolo, args[1:])
+			extraArgs := buildExtraArgs(yolo, target, args[1:])
 			switch target {
 			case "copilot":
 				return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			case "codex":
 				return runLaunchCodex(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			case "claude":
+				return runLaunchClaude(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			default:
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex）\n", target)
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex、claude）\n", target)
 				return errExit
 			}
 		},
@@ -64,6 +69,7 @@ func newLaunchCmd() *cobra.Command {
 Targets:
   copilot  以 BYOK profile 啟動 GitHub Copilot CLI
   codex    以 BYOK profile 啟動 OpenAI Codex CLI
+  claude   以 BYOK profile 啟動 Claude Code CLI
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
@@ -170,11 +176,17 @@ func availableProfileNames(profiles []config.Profile) []string {
 }
 
 // buildExtraArgs 組合 yolo 旗標與透傳參數為 extraArgs。
-// yolo 旗標在前，透傳參數在後；兩者皆空時回傳 nil。
-func buildExtraArgs(yolo bool, args []string) []string {
+// yoloLiteral 為目標工具特定的 yolo 旗標字串（copilot/codex 傳 "--yolo"，
+// claude 傳 "--dangerously-skip-permissions"）。yolo 旗標在前，透傳參數
+// 在後；兩者皆空時回傳 nil。
+func buildExtraArgs(yolo bool, target string, args []string) []string {
 	var extraArgs []string
 	if yolo {
-		extraArgs = append(extraArgs, "--yolo")
+		yoloLiteral := "--yolo"
+		if target == "claude" {
+			yoloLiteral = "--dangerously-skip-permissions"
+		}
+		extraArgs = append(extraArgs, yoloLiteral)
 	}
 	extraArgs = append(extraArgs, args...)
 	return extraArgs

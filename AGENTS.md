@@ -37,9 +37,9 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 | 套件                 | 職責                                                                 |
 | -------------------- | -------------------------------------------------------------------- |
 | `cmd/byok`           | 程式入口（`main` package），呼叫 `cmd.NewRoot` 建立根指令。            |
-| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex`）、`config` 子指令（含 `set-key`/`del-key`/`import-keys`）、`update` 子指令。 |
+| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex` / `launch claude`）、`config` 子指令（含 `set-key`/`del-key`/`import-keys`）、`update` 子指令。 |
 | `internal/config`    | YAML profile 的載入、儲存與驗證；設定檔預設位於 `~/.byok/config.yaml`；金鑰解析（`KeyResolver` 介面、`DefaultResolver`：keychain 優先 → 明碼 fallback）。 |
-| `internal/runner`    | BYOK 環境變數建置與子程序啟動（`Launch` for copilot、`LaunchCodex` for codex）。 |
+| `internal/runner`    | BYOK 環境變數建置與子程序啟動（`Launch` for copilot、`LaunchCodex` for codex、`LaunchClaude` for claude）。 |
 | `internal/secret`    | OS keychain 抽象層（zalando/go-keyring）：`Store`/`Load`/`Delete`/`Exists`，service=`byok`、key=`profile:<name>`。 |
 | `internal/updater`   | 自我更新：channel 判定、GitHub Releases 查詢、平台資產選擇、下載與跨平台執行檔原子替換。 |
 | `internal/version`   | 版本號嵌入（透過 ldflags 注入）。                                      |
@@ -53,8 +53,8 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 
 # 開發規範
 
-- **BYOK 注入僅作用於子程序** — 環境變數只注入到 `copilot` / `codex` 子行程，父程序（Shell）與系統環境永不被改變。
-- **不寫入使用者設定檔** — `byok` 不會修改 `~/.byok/config.yaml`、`~/.codex/config.toml` 或任何 Copilot/Codex 設定檔；codex 連線覆寫僅透過命令列 `--config` 旗標傳遞。
+- **BYOK 注入僅作用於子程序** — 環境變數只注入到 `copilot` / `codex` / `claude` 子行程，父程序（Shell）與系統環境永不被改變。
+- **不寫入使用者設定檔** — `byok` 不會修改 `~/.byok/config.yaml`、`~/.codex/config.toml`、`~/.claude/settings.json` 或任何 Copilot/Codex/Claude 設定檔；codex 連線覆寫僅透過命令列 `--config` 旗標傳遞；claude 僅透過環境變數注入。
 - **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。
 - **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
 - **金鑰以 OS keychain 為主要儲存、明碼 `api_key` 為 fallback** — `byok config set-key`/`import-keys` 將金鑰存入 keychain（service=`byok`、key=`profile:<name>`）並清除設定檔明碼；`launch` 時 `KeyResolver` 依 keychain → 明碼順序解析，兩者皆無則報錯。Linux 需 secret-service daemon（gnome-keyring/KWallet）；無 daemon 時回傳 backend-unavailable，可繼續使用明碼 fallback。

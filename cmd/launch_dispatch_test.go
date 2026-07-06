@@ -32,10 +32,10 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 			wantExitOne: true,
 		},
 		{
-			name:       "unsupported target",
-			args:       []string{"gemini"},
-			wantStderr: "不支援的工具",
-			wantExitOne: true,
+			name:          "unsupported target",
+			args:          []string{"gemini"},
+			wantStderr:    "不支援的工具",
+			wantExitOne:   true,
 			wantSupported: true,
 		},
 		{
@@ -47,6 +47,12 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 		{
 			name:       "codex dispatches to codex flow",
 			args:       []string{"codex", "--config", missingPath},
+			wantStderr: "找不到設定檔",
+			wantExitOne: true,
+		},
+		{
+			name:       "claude dispatches to claude flow",
+			args:       []string{"claude", "--config", missingPath},
 			wantStderr: "找不到設定檔",
 			wantExitOne: true,
 		},
@@ -70,8 +76,8 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 				t.Errorf("stderr missing %q, got: %s", sc.wantStderr, stderr.String())
 			}
 			if sc.wantSupported {
-				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") {
-					t.Errorf("stderr should list supported tools copilot & codex, got: %s", stderr.String())
+				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "claude") {
+					t.Errorf("stderr should list supported tools copilot, codex & claude, got: %s", stderr.String())
 				}
 			}
 		})
