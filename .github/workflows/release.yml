@@ -254,7 +254,7 @@ jobs:
           echo "--- changelog.md ---"
           cat changelog.md
 
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626b5b8d85266b0e65
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
