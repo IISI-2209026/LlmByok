@@ -12,7 +12,8 @@ description: >
   for explicit confirmation before sending, pushing the branch, and creating or
   patching the PR. Do NOT use for pushing without a PR, for merging a PR (use
   the GitHub UI or a merge API call directly), or for non-GitHub code review
-  platforms (GitLab/Gitea/Bitbucket).
+  platforms (GitLab/Gitea/Bitbucket). **Mandatory: must notify the user before
+  creating a PR and before merging — never skip these confirmation checkpoints.**
 ---
 
 # GitHub Create PR
@@ -24,6 +25,10 @@ REST API, authenticating via the local `git credential helper` (no `GH_TOKEN`
 env var required). The skill always **shows the drafted PR title and body to
 the user for confirmation before sending** — nothing is posted until the user
 approves.
+
+> ⚠ **強制通知規則** — 建立 PR 前與合併 PR 前都**必須**使用 `AskUserQuestion`
+> 工具通知使用者並等待明確確認。未經使用者確認，**不得**建立 PR 或合併 PR。
+> 此規則適用於所有 PR 流程，包含版號晉升（`byok-bump-version`）。
 
 Why this skill exists: the GitHub MCP server tools available in this
 environment are read-only (list/get/search), and `gh` CLI is not installed.
@@ -210,6 +215,23 @@ Report the PR URL, mergeable state, and counts to the user. Clean up the temp
 `pr_title.txt` / `pr_body.md` files (they live in the session `files/` dir and
 are not committed, but removing them avoids clutter).
 
+### 8. Notify user before merging (mandatory)
+
+This skill does **not** merge PRs, but when the user expresses intent to merge
+(or when a downstream skill like `byok-bump-version` requires a merge), you
+**must** notify the user before any merge action is taken. Use the
+`AskUserQuestion` tool with:
+
+- PR number and URL
+- PR title
+- `mergeable_state` (clean / blocked / unknown)
+- CI check status (passing / failing / pending)
+- Ask: "是否同意合併此 Pull Request？"
+
+**Do NOT merge the PR until the user explicitly confirms.** If the user
+declines or cancels, stop and do not merge. This checkpoint is mandatory and
+applies to all PR merges, including version bumps.
+
 ---
 
 ## Error Handling
@@ -220,7 +242,7 @@ are not committed, but removing them avoids clutter).
 | Branch already has an open PR | The API returns `422 Validation Failed: A pull request for branch X already exists`. Report the existing PR number (parse the error) and offer to update its title/body with `--update-existing`. |
 | HTTP 400 "Problems parsing JSON" | The body file was not valid UTF-8 or had a BOM. Re-write it as UTF-8 without BOM and retry. |
 | Garbled Chinese in the created PR body | You used PowerShell `ConvertTo-Json` or inline shell escaping instead of the Python helper + UTF-8 file. Re-run with `--update-existing <N>` using the Python helper. |
-| `mergeable_state: blocked` / failing checks | Report it; do not attempt to merge via this skill (it only creates/updates PRs). |
+| `mergeable_state: blocked` / failing checks | Report it; do not attempt to merge via this skill (it only creates/updates PRs). If the user asks to merge, still notify them of the blocked state before any action. |
 | `gh` CLI is installed | Prefer `gh pr create` if available — but still show the drafted title/body to the user for confirmation before running it. This skill's confirmation gate applies regardless of the creation mechanism. |
 
 ---

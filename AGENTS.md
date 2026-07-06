@@ -64,15 +64,15 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 
 # 版本號機制
 
-- **Canonical base 來源**：`internal/version/version.go` 的 `Version` 字面值為 canonical base 版號（semver、無 `v` prefix、無後綴），目前為 `0.1.0`。Makefile 與 Release workflow 皆以 `sed` 讀取此字面值，不引入額外 VERSION 檔或以 Git tag 為來源。
+- **Canonical base 來源**：`internal/version/version.go` 的 `Version` 字面值為 canonical base 版號（semver、無 `v` prefix、無後綴），目前為 `0.1.1`。Makefile 與 Release workflow 皆以 `sed` 讀取此字面值，不引入額外 VERSION 檔或以 Git tag 為來源。
 - **develop 預發布**：推送 develop → Release workflow 產生預發布，二進位版號 `<base>-dev.<run_number>`、tag `v<base>-dev.<run_number>`、`prerelease: true`。`run_number` 取自 `github.run_number`，確保每次推送唯一、不撞 tag。
 - **main 穩定發布**：推送 main → Release workflow 產生穩定發布，二進位版號 `<base>`、tag `v<base>`、`prerelease: false`。
 - **晉升流程**：
   1. develop 累積預發布至可發布狀態。
   2. merge develop → main 並推送 main → Release workflow 自動產生穩定發布 `v<base>`。
-  3. 於 develop 執行 `byok-bump-version` skill 將 base 晉升到下一個 patch（或 minor/major）。
-  4. push 到 develop，使下一輪預發布使用更高的 base（如 `0.1.1-dev.N`），下一輪 main 發布即為 `0.1.1`。
-- **bump skill**：`.github/skills/byok-bump-version/SKILL.md` 負責 bump + commit + push 到 develop；不建立 Git tag、不 push 到 main、不強推。在 main 分支執行時中止。
+  3. 執行 `byok-bump-version` skill 將 base 晉升到下一個 patch（或 minor/major），透過 Pull Request 合併至 develop。
+  4. PR 合併至 develop 後，下一輪預發布使用更高的 base（如 `0.1.2-dev.N`），下一輪 main 發布即為 `0.1.2`。
+- **bump skill**：`.github/skills/byok-bump-version/SKILL.md` 負責 bump + commit + push branch + 發 PR 到 develop；不建立 Git tag、不直接 push 到 develop 或 main、不強推。在 main 分支執行時中止。**發送 PR 前與合併前必須通知使用者確認，未經確認不得建立 PR 或合併。**
 
 # 維護規則
 
@@ -83,5 +83,11 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - 設定檔格式（`~/.byok/config.yaml` 欄位、預設路徑）
 - CLI 介面（指令、旗標、位置參數、錯誤訊息）
 - 已記錄於「開發規範」的行為
+
+## 分支保護與通知規則
+
+- **版號晉升必須透過 Pull Request** — `byok-bump-version` skill 的變更必須透過 PR 合併至 develop，**禁止直接 push 到 develop 或 main**。
+- **發送 PR 前必須通知使用者** — 建立任何 Pull Request 前（包含版號晉升），必須使用 `AskUserQuestion` 工具通知使用者 PR 內容（分支、目標、標題、摘要）並等待確認。未經確認不得建立 PR。
+- **合併 PR 前必須通知使用者** — 合併任何 Pull Request 前（包含版號晉升），必須使用 `AskUserQuestion` 工具通知使用者 PR 狀態（PR 編號、CI 狀態）並等待確認。未經確認不得合併。
 
 > ⚠ Spectra 區塊（`<!-- SPECTRA:START -->` 至 `<!-- SPECTRA:END -->`）由 Spectra CLI 自動管理，**不得手動編輯**。
