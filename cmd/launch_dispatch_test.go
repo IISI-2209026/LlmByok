@@ -63,6 +63,12 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 			wantStderr:  "找不到設定檔",
 			wantExitOne: true,
 		},
+		{
+			name:        "pi dispatches to pi flow",
+			args:        []string{"pi", "--config", missingPath},
+			wantStderr:  "找不到設定檔",
+			wantExitOne: true,
+		},
 	}
 
 	for _, sc := range scenarios {
@@ -83,8 +89,8 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 				t.Errorf("stderr missing %q, got: %s", sc.wantStderr, stderr.String())
 			}
 			if sc.wantSupported {
-				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "codex-app") || !strings.Contains(stderr.String(), "claude") {
-					t.Errorf("stderr should list supported tools copilot, codex, codex-app & claude, got: %s", stderr.String())
+				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "codex-app") || !strings.Contains(stderr.String(), "claude") || !strings.Contains(stderr.String(), "pi") {
+					t.Errorf("stderr should list supported tools copilot, codex, codex-app, claude & pi, got: %s", stderr.String())
 				}
 			}
 		})

@@ -8,7 +8,7 @@ TBD - created by archiving change 'add-byok-cli'. Update Purpose after archive.
 
 ### Requirement: Target tool selection and dispatch
 
-The `byok launch` command SHALL accept a target tool name as its first positional argument. The command SHALL dispatch to the `copilot` launch flow when the target is `copilot`, to the `codex` launch flow when the target is `codex`, to the `codex-app` launch flow when the target is `codex-app`, and to the `claude` launch flow when the target is `claude`. When the target is omitted, the command SHALL print an error message stating that a target tool is required and exit with code 1. When the target is any value other than `copilot`, `codex`, `codex-app`, or `claude`, the command SHALL print an error message listing the supported target tools and exit with code 1.
+The `byok launch` command SHALL accept a target tool name as its first positional argument. The command SHALL dispatch to the `copilot` launch flow when the target is `copilot`, to the `codex` launch flow when the target is `codex`, to the `codex-app` launch flow when the target is `codex-app`, to the `claude` launch flow when the target is `claude`, and to the `pi` launch flow when the target is `pi`. When the target is omitted, the command SHALL print an error message stating that a target tool is required and exit with code 1. When the target is any value other than `copilot`, `codex`, `codex-app`, `claude`, or `pi`, the command SHALL print an error message listing the supported target tools and exit with code 1.
 
 #### Scenario: Launch copilot dispatches to copilot flow
 
@@ -30,6 +30,11 @@ The `byok launch` command SHALL accept a target tool name as its first positiona
 - **WHEN** user runs `byok launch claude`
 - **THEN** the command dispatches to the claude launch flow
 
+#### Scenario: Launch pi dispatches to pi flow
+
+- **WHEN** user runs `byok launch pi`
+- **THEN** the command dispatches to the pi launch flow
+
 #### Scenario: Omitted target tool
 
 - **WHEN** user runs `byok launch` with no positional argument
@@ -38,23 +43,25 @@ The `byok launch` command SHALL accept a target tool name as its first positiona
 #### Scenario: Unsupported target tool rejected
 
 - **WHEN** user runs `byok launch gemini`
-- **THEN** the command prints an error message listing `copilot`, `codex`, `codex-app`, and `claude` as supported target tools and exits with code 1
+- **THEN** the command prints an error message listing `copilot`, `codex`, `codex-app`, `claude`, and `pi` as supported target tools and exits with code 1
 
 
 <!-- @trace
-source: add-codex-app-launch
+source: add-pi-launch
 updated: 2026-07-06
 code:
   - cmd/launch.go
+  - .github/workflows/release.yml
+  - internal/runner/runner.go
   - AGENTS.md
-  - cmd/launch_codex.go
+  - cmd/launch_pi.go
+  - internal/runner/pi.go
+  - internal/runner/testdata/stub/main.go
   - README.md
-  - internal/runner/codex.go
-  - cmd/launch_codex_app.go
 tests:
-  - cmd/launch_codex_app_test.go
   - cmd/launch_dispatch_test.go
-  - internal/runner/codex_app_test.go
+  - internal/runner/pi_test.go
+  - cmd/launch_pi_test.go
 -->
 
 ---
