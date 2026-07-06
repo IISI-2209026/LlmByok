@@ -1,18 +1,34 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/IISI-2209026/LlmByok/internal/config"
 	"github.com/IISI-2209026/LlmByok/internal/secret"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
+
+// keyStore 抽象 keychain 操作，便於測試注入 mock。
+type keyStore interface {
+	Store(profileName, apiKey string) error
+	Delete(profileName string) error
+}
+
+// realKeyStore 呼叫 internal/secret 實作。
+type realKeyStore struct{}
+
+func (realKeyStore) Store(profileName, apiKey string) error { return secret.Store(profileName, apiKey) }
+func (realKeyStore) Delete(profileName string) error        { return secret.Delete(profileName) }
+
+// keys 是全域 keyStore，測試可替換。
+var keys keyStore = realKeyStore{}
+
+// isTerminal 偵測 stdin 是否為終端機，測試可替換。
+var isTerminal = term.IsTerminal
 
 // newConfigCmd 建置 `byok config` 父指令及其子指令。
 func newConfigCmd() *cobra.Command {
@@ -21,12 +37,10 @@ func newConfigCmd() *cobra.Command {
 		Short: "管理設定檔中的 BYOK profile",
 	}
 	c.AddCommand(newConfigAddCmd())
+	c.AddCommand(newConfigUpdateCmd())
 	c.AddCommand(newConfigListCmd())
-	c.AddCommand(newConfigRemoveCmd())
+	c.AddCommand(newConfigDeleteCmd())
 	c.AddCommand(newConfigSetDefaultCmd())
-	c.AddCommand(newConfigSetKeyCmd())
-	c.AddCommand(newConfigDelKeyCmd())
-	c.AddCommand(newConfigImportKeysCmd())
 	return c
 }
 
@@ -35,28 +49,107 @@ func addConfigFlag(c *cobra.Command, p *string) {
 	c.Flags().StringVar(p, "config", "", "設定檔路徑（預設為 ~/.byok/config.yaml）")
 }
 
+// stdinIsTerminal 判斷 cmd 的 stdin 是否為終端機。
+func stdinIsTerminal(cmd *cobra.Command) bool {
+	f, ok := cmd.InOrStdin().(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminal(int(f.Fd()))
+}
+
 func newConfigAddCmd() *cobra.Command {
-	var name, provider, apiBase, apiKey, defaultModel, cfgPath string
+	var name, provider, apiBase, apiKey, defaultModel, keyStorage, cfgPath string
 	c := &cobra.Command{
 		Use:   "add",
 		Short: "新增 BYOK profile 至設定檔",
 		Long: `新增一個 profile 至設定檔。若檔案不存在則會建立。
 當未設定預設 profile 時，新 profile 會成為預設值。
-若同名 profile 已存在，則回傳錯誤且不修改檔案。`,
+若同名 profile 已存在，則回傳錯誤且不修改檔案。
+
+未提供任何欄位旗標時進入互動模式（需 TTY）。
+金鑰預設存入 OS keychain，可用 --key-storage plaintext 改存明碼。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, cmd.OutOrStdout())
+			fs := cmd.Flags()
+			interactive := !fs.Changed("name") &&
+				!fs.Changed("provider") &&
+				!fs.Changed("api-base") &&
+				!fs.Changed("default-model") &&
+				!fs.Changed("api-key")
+			if interactive {
+				if !stdinIsTerminal(cmd) {
+					return fmt.Errorf("互動模式需要終端機；請改用參數模式（--name, --api-base, --default-model 等）")
+				}
+				p := &config.Prompter{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), IsTTY: term.IsTerminal}
+				return runConfigAddInteractive(cfgPath, keyStorage, p, cmd.OutOrStdout())
+			}
+			if name == "" {
+				return fmt.Errorf("--name 為必填")
+			}
+			if apiBase == "" {
+				return fmt.Errorf("--api-base 為必填")
+			}
+			if defaultModel == "" {
+				return fmt.Errorf("--default-model 為必填")
+			}
+			return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage, cmd.OutOrStdout())
 		},
 		SilenceUsage: false,
 	}
-	c.Flags().StringVar(&name, "name", "", "profile 名稱（必填）")
+	c.Flags().StringVar(&name, "name", "", "profile 名稱")
 	c.Flags().StringVar(&provider, "provider", "openai", "provider 類型（首版僅支援 openai）")
-	c.Flags().StringVar(&apiBase, "api-base", "", "API base URL（必填）")
+	c.Flags().StringVar(&apiBase, "api-base", "", "API base URL")
 	c.Flags().StringVar(&apiKey, "api-key", "", "API key（無驗證端點可留空）")
-	c.Flags().StringVar(&defaultModel, "default-model", "", "預設模型識別碼（必填）")
+	c.Flags().StringVar(&defaultModel, "default-model", "", "預設模型識別碼")
+	c.Flags().StringVar(&keyStorage, "key-storage", "keychain", "金鑰儲存位置（keychain|plaintext）")
+	addConfigFlag(c, &cfgPath)
+	return c
+}
+
+func newConfigUpdateCmd() *cobra.Command {
+	var name, provider, apiBase, apiKey, defaultModel, keyStorage, cfgPath string
+	c := &cobra.Command{
+		Use:   "update",
+		Short: "更新既有 BYOK profile",
+		Long: `更新既有 profile 的欄位。未提供的欄位保留原值。
+僅提供 --name 時進入互動模式（需 TTY）。
+提供 --api-key 時依 --key-storage 處理金鑰。`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fs := cmd.Flags()
+			interactive := !fs.Changed("provider") &&
+				!fs.Changed("api-base") &&
+				!fs.Changed("default-model") &&
+				!fs.Changed("api-key") &&
+				!fs.Changed("key-storage")
+			if interactive {
+				if !stdinIsTerminal(cmd) {
+					return fmt.Errorf("互動模式需要終端機；請改用參數模式（--provider, --api-base 等）")
+				}
+				p := &config.Prompter{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), IsTTY: term.IsTerminal}
+				return runConfigUpdateInteractive(cfgPath, name, keyStorage, p, cmd.OutOrStdout())
+			}
+			var pProvider, pAPIBase, pDefaultModel *string
+			if fs.Changed("provider") {
+				pProvider = &provider
+			}
+			if fs.Changed("api-base") {
+				pAPIBase = &apiBase
+			}
+			if fs.Changed("default-model") {
+				pDefaultModel = &defaultModel
+			}
+			return runConfigUpdate(cfgPath, name, pProvider, pAPIBase, pDefaultModel, apiKey, fs.Changed("api-key"), keyStorage, cmd.OutOrStdout())
+		},
+		SilenceUsage: false,
+	}
+	c.Flags().StringVar(&name, "name", "", "要更新的 profile 名稱（必填）")
+	c.Flags().StringVar(&provider, "provider", "openai", "provider 類型")
+	c.Flags().StringVar(&apiBase, "api-base", "", "API base URL")
+	c.Flags().StringVar(&apiKey, "api-key", "", "API key（設為空字串清除金鑰）")
+	c.Flags().StringVar(&defaultModel, "default-model", "", "預設模型識別碼")
+	c.Flags().StringVar(&keyStorage, "key-storage", "keychain", "金鑰儲存位置（keychain|plaintext）")
 	addConfigFlag(c, &cfgPath)
 	_ = c.MarkFlagRequired("name")
-	_ = c.MarkFlagRequired("api-base")
-	_ = c.MarkFlagRequired("default-model")
 	return c
 }
 
@@ -73,16 +166,16 @@ func newConfigListCmd() *cobra.Command {
 	return c
 }
 
-func newConfigRemoveCmd() *cobra.Command {
+func newConfigDeleteCmd() *cobra.Command {
 	var name, cfgPath string
 	c := &cobra.Command{
-		Use:   "remove",
-		Short: "依名稱移除 BYOK profile",
+		Use:   "delete",
+		Short: "依名稱刪除 BYOK profile（同步清理 keychain）",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigRemove(cfgPath, name, cmd.OutOrStdout())
+			return runConfigDelete(cfgPath, name, cmd.OutOrStdout())
 		},
 	}
-	c.Flags().StringVar(&name, "name", "", "要移除的 profile 名稱（必填）")
+	c.Flags().StringVar(&name, "name", "", "要刪除的 profile 名稱（必填）")
 	addConfigFlag(c, &cfgPath)
 	_ = c.MarkFlagRequired("name")
 	return c
@@ -112,14 +205,34 @@ func configPath(explicit string) (string, error) {
 	return config.DefaultConfigPath()
 }
 
-func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel string, w io.Writer) error {
+// persistKey 依 keyStorage 處理金鑰儲存。
+// keychain: secret.Store，成功後清空 profile.APIKey。
+// plaintext: best-effort 刪除 keychain 條目，設 profile.APIKey = apiKey。
+// apiKey 為空時不做任何事（適用於 add 的「無金鑰」情境）。
+func persistKey(p *config.Profile, apiKey, keyStorage string) error {
+	if apiKey == "" {
+		return nil
+	}
+	switch keyStorage {
+	case "plaintext":
+		_ = keys.Delete(p.Name)
+		p.APIKey = apiKey
+	default: // "keychain"
+		if err := keys.Store(p.Name, apiKey); err != nil {
+			return fmt.Errorf("儲存至 keychain: %w（可改用 --key-storage plaintext）", err)
+		}
+		p.APIKey = ""
+	}
+	return nil
+}
+
+func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage string, w io.Writer) error {
 	path, err := configPath(cfgPath)
 	if err != nil {
 		return fmt.Errorf("解析設定檔路徑: %w", err)
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		// 對 add 而言檔案不存在是允許的：從空設定檔開始。
 		if os.IsNotExist(err) || isNotExistMsg(err) {
 			cfg = &config.Config{}
 		} else {
@@ -131,13 +244,16 @@ func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel string,
 			return fmt.Errorf("profile %q 已存在；未修改設定檔", name)
 		}
 	}
-	cfg.Profiles = append(cfg.Profiles, config.Profile{
+	prof := config.Profile{
 		Name:         name,
 		Provider:     provider,
 		APIBase:      apiBase,
-		APIKey:       apiKey,
 		DefaultModel: defaultModel,
-	})
+	}
+	if err := persistKey(&prof, apiKey, keyStorage); err != nil {
+		return err
+	}
+	cfg.Profiles = append(cfg.Profiles, prof)
 	if cfg.DefaultProfile == "" {
 		cfg.DefaultProfile = name
 	}
@@ -151,6 +267,142 @@ func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel string,
 	return nil
 }
 
+func runConfigAddInteractive(cfgPath, keyStorageDefault string, p *config.Prompter, w io.Writer) error {
+	name, err := p.PromptString("profile 名稱")
+	if err != nil {
+		return err
+	}
+	if name == "" {
+		return fmt.Errorf("profile 名稱不可為空")
+	}
+	provider, err := p.PromptDefault("provider", "openai")
+	if err != nil {
+		return err
+	}
+	apiBase, err := p.PromptString("API base URL")
+	if err != nil {
+		return err
+	}
+	if apiBase == "" {
+		return fmt.Errorf("API base URL 不可為空")
+	}
+	defaultModel, err := p.PromptString("預設模型")
+	if err != nil {
+		return err
+	}
+	if defaultModel == "" {
+		return fmt.Errorf("預設模型不可為空")
+	}
+	apiKey, err := p.PromptSecret("API key（可留空）")
+	if err != nil {
+		return err
+	}
+	keyStorage, err := p.PromptChoice("金鑰儲存", []string{"keychain", "plaintext"}, keyStorageDefault)
+	if err != nil {
+		return err
+	}
+	return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage, w)
+}
+
+func runConfigUpdate(cfgPath, name string, provider, apiBase, defaultModel *string, apiKey string, apiKeyProvided bool, keyStorage string, w io.Writer) error {
+	path, err := configPath(cfgPath)
+	if err != nil {
+		return fmt.Errorf("解析設定檔路徑: %w", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		if isNotExistMsg(err) {
+			return fmt.Errorf("找不到 profile %q", name)
+		}
+		return err
+	}
+	idx := -1
+	for i := range cfg.Profiles {
+		if cfg.Profiles[i].Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("找不到 profile %q", name)
+	}
+	prof := &cfg.Profiles[idx]
+	config.ApplyProfileUpdates(prof, provider, apiBase, defaultModel)
+	if apiKeyProvided {
+		if apiKey == "" {
+			_ = keys.Delete(prof.Name)
+			prof.APIKey = ""
+		} else {
+			if err := persistKey(prof, apiKey, keyStorage); err != nil {
+				return err
+			}
+		}
+	}
+	if err := config.Save(path, cfg); err != nil {
+		return fmt.Errorf("儲存設定檔: %w", err)
+	}
+	fmt.Fprintf(w, "已更新 profile %q\n", name)
+	return nil
+}
+
+func runConfigUpdateInteractive(cfgPath, name, keyStorageDefault string, p *config.Prompter, w io.Writer) error {
+	path, err := configPath(cfgPath)
+	if err != nil {
+		return fmt.Errorf("解析設定檔路徑: %w", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		if isNotExistMsg(err) {
+			return fmt.Errorf("找不到 profile %q", name)
+		}
+		return err
+	}
+	idx := -1
+	for i := range cfg.Profiles {
+		if cfg.Profiles[i].Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return fmt.Errorf("找不到 profile %q", name)
+	}
+	prof := &cfg.Profiles[idx]
+	provider, err := p.PromptDefault("provider", prof.Provider)
+	if err != nil {
+		return err
+	}
+	apiBase, err := p.PromptDefault("API base URL", prof.APIBase)
+	if err != nil {
+		return err
+	}
+	defaultModel, err := p.PromptDefault("預設模型", prof.DefaultModel)
+	if err != nil {
+		return err
+	}
+	apiKey, err := p.PromptSecret("API key（留空保留原值）")
+	if err != nil {
+		return err
+	}
+	keyStorage, err := p.PromptChoice("金鑰儲存", []string{"keychain", "plaintext"}, keyStorageDefault)
+	if err != nil {
+		return err
+	}
+	prof.Provider = provider
+	prof.APIBase = apiBase
+	prof.DefaultModel = defaultModel
+	if apiKey != "" {
+		if err := persistKey(prof, apiKey, keyStorage); err != nil {
+			return err
+		}
+	}
+	if err := config.Save(path, cfg); err != nil {
+		return fmt.Errorf("儲存設定檔: %w", err)
+	}
+	fmt.Fprintf(w, "已更新 profile %q\n", name)
+	return nil
+}
+
 func runConfigList(cfgPath string, w io.Writer) error {
 	path, err := configPath(cfgPath)
 	if err != nil {
@@ -158,7 +410,6 @@ func runConfigList(cfgPath string, w io.Writer) error {
 	}
 	cfg, err := config.Load(path)
 	if err != nil {
-		// 設定檔不存在視為尚無 profile，以友善訊息提示，不傾印原始 OS 錯誤。
 		if isNotExistMsg(err) {
 			fmt.Fprintf(w, "尚無任何 profile。請先執行 `byok config add`。\n")
 			return nil
@@ -182,7 +433,7 @@ func runConfigList(cfgPath string, w io.Writer) error {
 	return nil
 }
 
-func runConfigRemove(cfgPath, name string, w io.Writer) error {
+func runConfigDelete(cfgPath, name string, w io.Writer) error {
 	path, err := configPath(cfgPath)
 	if err != nil {
 		return fmt.Errorf("解析設定檔路徑: %w", err)
@@ -190,7 +441,7 @@ func runConfigRemove(cfgPath, name string, w io.Writer) error {
 	cfg, err := config.Load(path)
 	if err != nil {
 		if isNotExistMsg(err) {
-			return fmt.Errorf("設定檔不存在: %s", path)
+			return fmt.Errorf("找不到 profile %q", name)
 		}
 		return err
 	}
@@ -211,7 +462,14 @@ func runConfigRemove(cfgPath, name string, w io.Writer) error {
 	if err := config.Save(path, cfg); err != nil {
 		return fmt.Errorf("儲存設定檔: %w", err)
 	}
-	fmt.Fprintf(w, "已從 %s 移除 profile %q\n", path, name)
+	fmt.Fprintf(w, "已從 %s 刪除 profile %q\n", path, name)
+	if err := keys.Delete(name); err != nil {
+		if !errors.Is(err, secret.ErrNotFound) {
+			fmt.Fprintf(w, "警告：清理 keychain 失敗: %v\n", err)
+		}
+	} else {
+		fmt.Fprintf(w, "已自 keychain 刪除金鑰（profile: %s）\n", name)
+	}
 	return nil
 }
 
@@ -261,223 +519,9 @@ func maskAPIKey(key string) string {
 }
 
 // isNotExistMsg 偵測 config.Load 回傳的「設定檔不存在」錯誤。
-// 我們使用 errors.Is(err, os.ErrNotExist) 而非 os.IsNotExist，因為
-// os.IsNotExist 在 Windows 上不會遍歷被包裝的錯誤（它以 == 比對
-// ERROR_FILE_NOT_FOUND / ERROR_PATH_NOT_FOUND，而非使用 errors.Is），
-// 而 config.Load 會以 fmt.Errorf("...: %w") 包裝底層 os.PathError。
 func isNotExistMsg(err error) bool {
 	if err == nil {
 		return false
 	}
 	return errors.Is(err, os.ErrNotExist)
-}
-
-// --- 金鑰管理子指令 ---
-
-func newConfigSetKeyCmd() *cobra.Command {
-	var cfgPath string
-	c := &cobra.Command{
-		Use:   "set-key <profile>",
-		Short: "將 API 金鑰存入 OS keychain（互動式輸入）",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			profileName := args[0]
-			fmt.Fprint(cmd.ErrOrStderr(), "輸入金鑰: ")
-			apiKey, err := readPassword(cmd.InOrStdin())
-			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：讀取金鑰失敗: %v\n", err)
-				return errExit
-			}
-			if apiKey == "" {
-				fmt.Fprintln(cmd.ErrOrStderr(), "金鑰不可為空")
-				return errExit
-			}
-			if err := runConfigSetKey(cfgPath, profileName, apiKey, cmd.OutOrStdout()); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：%v\n", err)
-				return errExit
-			}
-			return nil
-		},
-		SilenceUsage: true,
-	}
-	addConfigFlag(c, &cfgPath)
-	return c
-}
-
-func newConfigDelKeyCmd() *cobra.Command {
-	var cfgPath string
-	c := &cobra.Command{
-		Use:   "del-key <profile>",
-		Short: "自 OS keychain 刪除 API 金鑰",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			profileName := args[0]
-			if err := runConfigDelKey(cfgPath, profileName, cmd.OutOrStdout()); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：%v\n", err)
-				return errExit
-			}
-			return nil
-		},
-		SilenceUsage: true,
-	}
-	addConfigFlag(c, &cfgPath)
-	return c
-}
-
-func newConfigImportKeysCmd() *cobra.Command {
-	var cfgPath string
-	c := &cobra.Command{
-		Use:   "import-keys",
-		Short: "將設定檔中所有明碼金鑰批次匯入 OS keychain",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := runConfigImportKeys(cfgPath, cmd.OutOrStdout()); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：%v\n", err)
-				return errExit
-			}
-			return nil
-		},
-		SilenceUsage: true,
-	}
-	addConfigFlag(c, &cfgPath)
-	return c
-}
-
-// readPassword 自 stdin 讀取一行密碼。若 stdin 為終端機則使用
-// term.ReadPassword 不回顯讀取；否則以 bufio 讀取一行（支援管線輸入）。
-func readPassword(stdin io.Reader) (string, error) {
-	if f, ok := stdin.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
-		bytes, err := term.ReadPassword(int(f.Fd()))
-		fmt.Fprintln(os.Stderr)
-		if err != nil {
-			return "", err
-		}
-		return string(bytes), nil
-	}
-	reader := bufio.NewReader(stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
-
-// runConfigSetKey 將 apiKey 存入 keychain 並清除設定檔中的明碼 api_key。
-func runConfigSetKey(cfgPath, profileName, apiKey string, w io.Writer) error {
-	if apiKey == "" {
-		return fmt.Errorf("金鑰不可為空")
-	}
-	path, err := configPath(cfgPath)
-	if err != nil {
-		return fmt.Errorf("解析設定檔路徑: %w", err)
-	}
-	cfg, err := config.Load(path)
-	if err != nil {
-		if isNotExistMsg(err) {
-			return fmt.Errorf("profile %s 不存在", profileName)
-		}
-		return err
-	}
-	found := false
-	for i := range cfg.Profiles {
-		if cfg.Profiles[i].Name == profileName {
-			found = true
-			if err := secret.Store(profileName, apiKey); err != nil {
-				return fmt.Errorf("儲存至 keychain: %w", err)
-			}
-			hadPlaintext := cfg.Profiles[i].APIKey != ""
-			cfg.Profiles[i].APIKey = ""
-			if err := config.Save(path, cfg); err != nil {
-				return fmt.Errorf("儲存設定檔: %w", err)
-			}
-			fmt.Fprintf(w, "已將金鑰存入 keychain（profile: %s）\n", profileName)
-			if hadPlaintext {
-				fmt.Fprintf(w, "已清除設定檔中的明碼 api_key\n")
-			}
-			break
-		}
-	}
-	if !found {
-		return fmt.Errorf("profile %s 不存在", profileName)
-	}
-	return nil
-}
-
-// runConfigDelKey 自 keychain 刪除指定 profile 的金鑰。
-func runConfigDelKey(cfgPath, profileName string, w io.Writer) error {
-	path, err := configPath(cfgPath)
-	if err != nil {
-		return fmt.Errorf("解析設定檔路徑: %w", err)
-	}
-	cfg, err := config.Load(path)
-	if err != nil {
-		if isNotExistMsg(err) {
-			return fmt.Errorf("profile %s 不存在", profileName)
-		}
-		return err
-	}
-	found := false
-	for _, p := range cfg.Profiles {
-		if p.Name == profileName {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return fmt.Errorf("profile %s 不存在", profileName)
-	}
-	if err := secret.Delete(profileName); err != nil {
-		if errors.Is(err, secret.ErrNotFound) {
-			return fmt.Errorf("profile %s 未在 keychain 中", profileName)
-		}
-		return fmt.Errorf("自 keychain 刪除: %w", err)
-	}
-	fmt.Fprintf(w, "已自 keychain 刪除金鑰（profile: %s）\n", profileName)
-	return nil
-}
-
-// runConfigImportKeys 批次將設定檔中的明碼金鑰匯入 keychain，成功後清除明碼。
-func runConfigImportKeys(cfgPath string, w io.Writer) error {
-	path, err := configPath(cfgPath)
-	if err != nil {
-		return fmt.Errorf("解析設定檔路徑: %w", err)
-	}
-	cfg, err := config.Load(path)
-	if err != nil {
-		if isNotExistMsg(err) {
-			return fmt.Errorf("設定檔不存在: %s", path)
-		}
-		return err
-	}
-	var toImport []int
-	for i := range cfg.Profiles {
-		if cfg.Profiles[i].APIKey != "" {
-			toImport = append(toImport, i)
-		}
-	}
-	if len(toImport) == 0 {
-		fmt.Fprintln(w, "設定檔中無明碼金鑰可匯入")
-		return nil
-	}
-	var failures []string
-	imported := 0
-	for _, i := range toImport {
-		if err := secret.Store(cfg.Profiles[i].Name, cfg.Profiles[i].APIKey); err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", cfg.Profiles[i].Name, err))
-			continue
-		}
-		cfg.Profiles[i].APIKey = ""
-		imported++
-	}
-	if err := config.Save(path, cfg); err != nil {
-		return fmt.Errorf("儲存設定檔: %w", err)
-	}
-	if len(failures) > 0 {
-		fmt.Fprintln(w, "匯入失敗:")
-		for _, f := range failures {
-			fmt.Fprintf(w, "  %s\n", f)
-		}
-		return fmt.Errorf("匯入部分失敗（%d 成功，%d 失敗）", imported, len(failures))
-	}
-	fmt.Fprintf(w, "匯入 %d 個金鑰至 keychain\n", imported)
-	return nil
 }

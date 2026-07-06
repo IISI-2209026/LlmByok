@@ -188,7 +188,7 @@ default_profile: openai-official
 - macOS/Linux 可將權限設為 `600`：`chmod 600 ~/.byok/config.yaml`。
 - Windows 可透過檔案內容 > 安全性，將存取權限限制為你的使用者帳戶。
 - 絕對不要把 `~/.byok/config.yaml` commit 到版本控制。
-- **推薦**：使用 `byok config set-key` 或 `byok config import-keys` 將金鑰移至 OS keychain，設定檔中不再保留明碼 `api_key`。
+- **推薦**：`byok config add`/`update` 預設以 `--key-storage keychain` 將金鑰存入 OS keychain，設定檔中不再保留明碼 `api_key`。
 
 ## 使用說明
 
@@ -258,15 +258,18 @@ byok launch claude -y -- review this
 
 新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。
 
+未提供任何欄位旗標（`--name`、`--provider`、`--api-base`、`--default-model`、`--api-key`）時進入**互動模式**，於終端依序提示各欄位與金鑰儲存選擇（需 TTY，非 TTY 印錯並 exit 1）。
+
 **旗標：**
 
 | 旗標             | 說明                                       |
 | ---------------- | ----------------------------------------- |
-| `--name`         | profile 名稱（必填）。                       |
+| `--name`         | profile 名稱。                              |
 | `--provider`     | provider 類型（目前僅支援 `openai`）。        |
 | `--api-base`     | API base URL。                            |
 | `--api-key`      | API 金鑰（無金鑰的本機伺服器用 `""`）。        |
 | `--default-model`| 預設模型名稱。                               |
+| `--key-storage`  | 金鑰儲存位置：`keychain`（預設）或 `plaintext`。|
 | `--config`       | 覆寫設定檔路徑。                            |
 
 **範例：**
@@ -278,6 +281,39 @@ byok config add \
   --api-base https://api.openai.com/v1 \
   --api-key sk-xxxx \
   --default-model gpt-4o
+# 金鑰預設存入 keychain；設定檔中不含明碼 api_key
+```
+
+互動模式：
+
+```bash
+byok config add
+# 依序提示 profile 名稱、provider、API base URL、預設模型、API key、金鑰儲存
+```
+
+### `byok config update`
+
+更新既有 profile 的欄位。未提供的欄位保留原值。僅提供 `--name` 而未提供其他欄位旗標時進入**互動模式**（需 TTY）。
+
+提供 `--api-key` 時依 `--key-storage` 處理金鑰；`--api-key ""` 清除既有金鑰（同步刪除 keychain 條目）。
+
+**旗標：**
+
+| 旗標             | 說明                                       |
+| ---------------- | ----------------------------------------- |
+| `--name`         | 要更新的 profile 名稱（必填）。             |
+| `--provider`     | provider 類型。                            |
+| `--api-base`     | API base URL。                            |
+| `--api-key`      | API 金鑰（設為空字串清除金鑰）。              |
+| `--default-model`| 預設模型名稱。                               |
+| `--key-storage`  | 金鑰儲存位置：`keychain`（預設）或 `plaintext`。|
+| `--config`       | 覆寫設定檔路徑。                            |
+
+**範例：**
+
+```bash
+byok config update --name openai-official --api-key sk-new-key
+# 新金鑰存入 keychain，舊金鑰被覆寫
 ```
 
 ### `byok config list`
@@ -296,21 +332,21 @@ byok config add \
 byok config list
 ```
 
-### `byok config remove`
+### `byok config delete`
 
-依名稱移除 profile。找不到時會報錯。若被移除的 profile 正是 `default_profile`，則該欄位會被清空。
+依名稱刪除 profile，並同步清理 keychain 中的對應金鑰（盡力而為；keychain 刪除失敗僅印警告，profile 仍已移除）。找不到 profile 時報錯且不碰 keychain。若被刪除的 profile 正是 `default_profile`，則該欄位會被清空。
 
 **旗標：**
 
 | 旗標      | 說明                          |
 | --------- | ----------------------------- |
-| `--name`  | 要移除的 profile 名稱（必填）。 |
+| `--name`  | 要刪除的 profile 名稱（必填）。 |
 | `--config`| 覆寫設定檔路徑。                |
 
 **範例：**
 
 ```bash
-byok config remove --name local-ollama
+byok config delete --name local-ollama
 ```
 
 ### `byok config set-default`
@@ -334,35 +370,16 @@ byok config set-default --name local-ollama
 
 `byok` 支援將 API 金鑰儲存於作業系統的 keychain（Windows Credential Manager、macOS Keychain、Linux Secret Service），避免明文寫入設定檔。金鑰以 `profile:<名稱>` 為 key 存入，service 名稱為 `byok`。
 
+金鑰管理已整合至 profile 生命週期：
+
+- **新增金鑰**：`byok config add`/`update` 時以 `--key-storage keychain`（預設）將金鑰存入 keychain，設定檔中不含明碼 `api_key`。可用 `--key-storage plaintext` 改存明碼。
+- **刪除金鑰**：`byok config delete` 移除 profile 時同步清理 keychain。
+
 `byok launch` 啟動時會自動依以下順序解析金鑰：**keychain 優先 → 設定檔明碼 fallback → 兩者皆無則報錯**。
 
-#### `byok config set-key <profile>`
-
-以互動式密碼提示（不回顯、不留 shell 歷史）輸入金鑰並存入 keychain，同時清除設定檔中的明碼 `api_key`。
-
-```bash
-byok config set-key openai-official
-# 提示：請輸入 API 金鑰（輸入不回顯）：
-```
-
-#### `byok config del-key <profile>`
-
-自 keychain 刪除該 profile 的金鑰。
-
-```bash
-byok config del-key openai-official
-```
-
-#### `byok config import-keys`
-
-將設定檔中所有非空明碼 `api_key` 批次匯入 keychain，成功後清除明碼欄位並回寫設定檔。單一 profile 失敗時記錄並繼續，最後印出失敗清單。
-
-```bash
-byok config import-keys
-# 匯入 2 個金鑰至 keychain
-```
-
-> **Linux 注意事項**：keychain 功能依賴 Secret Service D-Bus API（如 `gnome-keyring` 或 `KWallet`）。若環境中無 secret-service daemon，keychain 操作會回傳 backend-unavailable 錯誤；此時可繼續使用設定檔明碼 `api_key` 作為 fallback。
+> **遷移路徑**：舊版獨立指令 `set-key`/`del-key`/`import-keys` 已移除。請改用 `byok config update --name <profile> --api-key <key>` 更新金鑰，或 `byok config delete` 刪除。
+>
+> **Linux 注意事項**：keychain 功能依賴 Secret Service D-Bus API（如 `gnome-keyring` 或 `KWallet`）。若環境中無 secret-service daemon，keychain 操作會回傳 backend-unavailable 錯誤；此時可改用 `--key-storage plaintext` 將金鑰以明碼寫入設定檔。
 
 ### `byok update`
 
