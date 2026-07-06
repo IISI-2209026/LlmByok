@@ -61,6 +61,8 @@ func BuildEnv(profile *config.Profile, modelOverride string) []string {
 		"COPILOT_PROVIDER_TYPE="+provider,
 		"COPILOT_PROVIDER_API_KEY="+profile.APIKey,
 		"COPILOT_MODEL="+model,
+		"COPILOT_PROVIDER_MAX_PROMPT_TOKENS=1048576",
+		"COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=131072",
 	)
 
 	return env
