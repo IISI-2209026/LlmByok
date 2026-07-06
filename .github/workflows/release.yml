@@ -19,15 +19,19 @@ jobs:
           - os: windows
             arch: amd64
             ext: zip
+            binary: byok.exe
           - os: linux
             arch: amd64
             ext: tar.gz
+            binary: byok
           - os: darwin
             arch: amd64
             ext: tar.gz
+            binary: byok
           - os: darwin
             arch: arm64
             ext: tar.gz
+            binary: byok
     steps:
       - uses: actions/checkout@v4
 
@@ -70,15 +74,15 @@ jobs:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
         run: |
-          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o byok ./cmd/byok
+          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o ${{ matrix.binary }} ./cmd/byok
 
       - name: Package (zip)
         if: matrix.ext == 'zip'
-        run: zip byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.zip byok
+        run: zip byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.zip ${{ matrix.binary }}
 
       - name: Package (tar.gz)
         if: matrix.ext == 'tar.gz'
-        run: tar czf byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz byok
+        run: tar czf byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz ${{ matrix.binary }}
 
       - uses: actions/upload-artifact@v4
         with:
