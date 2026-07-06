@@ -121,36 +121,36 @@ func envLookupOS(key string) string {
 	return ""
 }
 
-// TestBuildExtraArgs_YoloFlag 驗證 yolo 旗標為 true 時附加 --yolo。
+// TestBuildExtraArgs_YoloFlag 驗證 yolo 旗標為 true 時附加 --yolo（copilot/codex）。
 func TestBuildExtraArgs_YoloFlag(t *testing.T) {
-	got := buildExtraArgs(true, nil)
+	got := buildExtraArgs(true, "copilot", nil)
 	want := []string{"--yolo"}
 	if len(got) != len(want) || got[0] != want[0] {
-		t.Errorf("buildExtraArgs(true, nil) = %v, want %v", got, want)
+		t.Errorf("buildExtraArgs(true, copilot, nil) = %v, want %v", got, want)
 	}
 }
 
 // TestBuildExtraArgs_YoloShortForm 驗證 -y 短形式與 --yolo 等效。
 func TestBuildExtraArgs_YoloShortForm(t *testing.T) {
 	// -y 在 cobra 層設定 yolo=true，與 --yolo 相同路徑。
-	got := buildExtraArgs(true, nil)
+	got := buildExtraArgs(true, "copilot", nil)
 	if len(got) != 1 || got[0] != "--yolo" {
-		t.Errorf("buildExtraArgs(true, nil) = %v, want [--yolo]", got)
+		t.Errorf("buildExtraArgs(true, copilot, nil) = %v, want [--yolo]", got)
 	}
 }
 
 // TestBuildExtraArgs_SinglePassthrough 驗證透傳單一參數。
 func TestBuildExtraArgs_SinglePassthrough(t *testing.T) {
-	got := buildExtraArgs(false, []string{"--continue"})
+	got := buildExtraArgs(false, "copilot", []string{"--continue"})
 	want := []string{"--continue"}
 	if len(got) != len(want) || got[0] != want[0] {
-		t.Errorf("buildExtraArgs(false, [--continue]) = %v, want %v", got, want)
+		t.Errorf("buildExtraArgs(false, copilot, [--continue]) = %v, want %v", got, want)
 	}
 }
 
 // TestBuildExtraArgs_MultiplePassthrough 驗證透傳多個參數保持順序。
 func TestBuildExtraArgs_MultiplePassthrough(t *testing.T) {
-	got := buildExtraArgs(false, []string{"--continue", "--model", "x"})
+	got := buildExtraArgs(false, "copilot", []string{"--continue", "--model", "x"})
 	want := []string{"--continue", "--model", "x"}
 	if len(got) != len(want) {
 		t.Fatalf("len = %d, want %d: %v", len(got), len(want), got)
@@ -165,7 +165,7 @@ func TestBuildExtraArgs_MultiplePassthrough(t *testing.T) {
 // TestBuildExtraArgs_YoloAndPassthrough 驗證 yolo 與透傳合用時
 // --yolo 在前，透傳參數在後。
 func TestBuildExtraArgs_YoloAndPassthrough(t *testing.T) {
-	got := buildExtraArgs(true, []string{"--continue"})
+	got := buildExtraArgs(true, "copilot", []string{"--continue"})
 	want := []string{"--yolo", "--continue"}
 	if len(got) != len(want) {
 		t.Fatalf("len = %d, want %d: %v", len(got), len(want), got)
@@ -179,8 +179,41 @@ func TestBuildExtraArgs_YoloAndPassthrough(t *testing.T) {
 
 // TestBuildExtraArgs_NoArgs 驗證無旗標無透傳時回傳 nil（行為不變）。
 func TestBuildExtraArgs_NoArgs(t *testing.T) {
-	got := buildExtraArgs(false, nil)
+	got := buildExtraArgs(false, "copilot", nil)
 	if got != nil {
-		t.Errorf("buildExtraArgs(false, nil) = %v, want nil", got)
+		t.Errorf("buildExtraArgs(false, copilot, nil) = %v, want nil", got)
+	}
+}
+
+// TestBuildExtraArgs_ClaudeYoloMapping 驗證 claude target 的 yolo 旗標
+// 映射為 --dangerously-skip-permissions。
+func TestBuildExtraArgs_ClaudeYoloMapping(t *testing.T) {
+	got := buildExtraArgs(true, "claude", nil)
+	want := []string{"--dangerously-skip-permissions"}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Errorf("buildExtraArgs(true, claude, nil) = %v, want %v", got, want)
+	}
+}
+
+// TestBuildExtraArgs_ClaudeYoloAndPassthrough 驗證 claude target 的
+// yolo 旗標與透傳參數同時使用時旗標在前。
+func TestBuildExtraArgs_ClaudeYoloAndPassthrough(t *testing.T) {
+	got := buildExtraArgs(true, "claude", []string{"review this"})
+	want := []string{"--dangerously-skip-permissions", "review this"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d: %v", len(got), len(want), got)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("got[%d] = %q, want %q", i, got[i], w)
+		}
+	}
+}
+
+// TestBuildExtraArgs_CodexYoloUnchanged 驗證 codex target 仍使用 --yolo。
+func TestBuildExtraArgs_CodexYoloUnchanged(t *testing.T) {
+	got := buildExtraArgs(true, "codex", nil)
+	if len(got) != 1 || got[0] != "--yolo" {
+		t.Errorf("buildExtraArgs(true, codex, nil) = %v, want [--yolo]", got)
 	}
 }

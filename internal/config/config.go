@@ -125,3 +125,21 @@ func (DefaultResolver) Resolve(p Profile) (string, Source, error) {
 
 // Resolver 是全域預設解析器，可在測試中被替換。
 var Resolver KeyResolver = DefaultResolver{}
+
+// ApplyProfileUpdates 將非 nil 指標的欄位套用至既有 profile；nil 指標表示
+// 「未提供該欄位」，保留原值。呼叫端以指標表達「未提供」，避免零值與
+// 「清空」語意混淆。name 不在此更新（profile 名稱為識別碼，不可變更）。
+func ApplyProfileUpdates(p *Profile, provider, apiBase, defaultModel *string) {
+	if p == nil {
+		return
+	}
+	if provider != nil {
+		p.Provider = *provider
+	}
+	if apiBase != nil {
+		p.APIBase = *apiBase
+	}
+	if defaultModel != nil {
+		p.DefaultModel = *defaultModel
+	}
+}
