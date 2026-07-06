@@ -10,11 +10,12 @@ import (
 )
 
 // TestLaunch_TargetToolSelection 驗證 `byok launch` 的第一個位置參數正式
-// 分派至 copilot 或 codex 流程，並對省略/不支援目標印出錯誤並 exit 1。
+// 分派至 copilot、codex、codex-app 或 claude 流程，並對省略/不支援目標
+// 印出錯誤並 exit 1。
 //
 // 為避免實際啟動外部 CLI，測試使用一個不存在的 --config 路徑，使分派
-// 進入 copilot/codex 後於「找不到設定檔」錯誤路徑結束；藉由 stderr 是否
-// 出現 codex 專屬訊息（或 copilot 既有訊息）判斷分派目標。
+// 進入 copilot/codex/codex-app/claude 後於「找不到設定檔」錯誤路徑結束；
+// 藉由 stderr 是否出現 codex 專屬訊息（或 copilot 既有訊息）判斷分派目標。
 func TestLaunch_TargetToolSelection(t *testing.T) {
 	missingPath := filepath.Join(t.TempDir(), "does-not-exist.yaml")
 
@@ -26,9 +27,9 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 		wantSupported bool
 	}{
 		{
-			name:       "omitted target",
-			args:       []string{},
-			wantStderr: "必須指定目標工具",
+			name:        "omitted target",
+			args:        []string{},
+			wantStderr:  "必須指定目標工具",
 			wantExitOne: true,
 		},
 		{
@@ -39,21 +40,27 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 			wantSupported: true,
 		},
 		{
-			name:       "copilot dispatches to copilot flow",
-			args:       []string{"copilot", "--config", missingPath},
-			wantStderr: "找不到設定檔",
+			name:        "copilot dispatches to copilot flow",
+			args:        []string{"copilot", "--config", missingPath},
+			wantStderr:  "找不到設定檔",
 			wantExitOne: true,
 		},
 		{
-			name:       "codex dispatches to codex flow",
-			args:       []string{"codex", "--config", missingPath},
-			wantStderr: "找不到設定檔",
+			name:        "codex dispatches to codex flow",
+			args:        []string{"codex", "--config", missingPath},
+			wantStderr:  "找不到設定檔",
 			wantExitOne: true,
 		},
 		{
-			name:       "claude dispatches to claude flow",
-			args:       []string{"claude", "--config", missingPath},
-			wantStderr: "找不到設定檔",
+			name:        "codex-app dispatches to codex-app flow",
+			args:        []string{"codex-app", "--config", missingPath},
+			wantStderr:  "找不到設定檔",
+			wantExitOne: true,
+		},
+		{
+			name:        "claude dispatches to claude flow",
+			args:        []string{"claude", "--config", missingPath},
+			wantStderr:  "找不到設定檔",
 			wantExitOne: true,
 		},
 	}
@@ -76,8 +83,8 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 				t.Errorf("stderr missing %q, got: %s", sc.wantStderr, stderr.String())
 			}
 			if sc.wantSupported {
-				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "claude") {
-					t.Errorf("stderr should list supported tools copilot, codex & claude, got: %s", stderr.String())
+				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "codex-app") || !strings.Contains(stderr.String(), "claude") {
+					t.Errorf("stderr should list supported tools copilot, codex, codex-app & claude, got: %s", stderr.String())
 				}
 			}
 		})

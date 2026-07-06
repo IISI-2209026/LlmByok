@@ -80,3 +80,23 @@ func LaunchCodex(profile *config.Profile, modelOverride, exePath string, extraAr
 	cmd.Stderr = stderr
 	return cmd.Run()
 }
+
+// LaunchCodexApp 以 BuildCodexArgs 組裝的環境與 --config 旗標啟動
+// codex app 子程序（Codex 桌面版）。app 子命令插入為命令列第一個參數，
+// 接著是 --config 旗標，最後是透傳參數。stdin、stdout 與 stderr 透明
+// 連接。父程序環境永不被修改 — 僅子程序接收覆寫後的變數。
+//
+// 命令列順序：codex app [--config ...] [<extraArgs...>]。
+func LaunchCodexApp(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	env, configArgs := BuildCodexArgs(profile, modelOverride)
+	args := []string{"app"}
+	args = append(args, configArgs...)
+	args = append(args, extraArgs...)
+
+	cmd := exec.Command(exePath, args...)
+	cmd.Env = env
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	return cmd.Run()
+}

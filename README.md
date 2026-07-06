@@ -5,7 +5,7 @@
 ### 主要功能
 
 - **以設定檔（profile）管理金鑰** — 每個 profile 各自儲存 Provider、API Base、API Key 與 Default Model 四個設定值。
-- **一行指令啟動** — `byok launch copilot --model gemma4` 即可用選定 profile 的金鑰啟動 Copilot，並可選擇性地覆寫模型。同樣支援 `byok launch codex` 與 `byok launch claude`。
+- **一行指令啟動** — `byok launch copilot --model gemma4` 即可用選定 profile 的金鑰啟動 Copilot，並可選擇性地覆寫模型。同樣支援 `byok launch codex`、`byok launch codex-app`（Codex 桌面版）與 `byok launch claude`。
 - **暫時性的環境注入** — 環境變數只注入到目標工具子行程，永遠不會寫入系統環境變數或 Shell 設定檔。
 - **支援三個目標工具** — Copilot CLI、Codex CLI 與 Claude Code，皆使用同一套 BYOK profile 機制。
 - **第一版** 僅支援 OpenAI 相容端點（provider 類型為 `openai`）。
@@ -194,19 +194,21 @@ default_profile: openai-official
 
 ### `byok launch <target>`
 
-以某個 BYOK profile 啟動指定的目標 CLI（`copilot`、`codex` 或 `claude`），將 BYOK 設定暫時注入子程序環境；你的 Shell 環境永不被改變。
+以某個 BYOK profile 啟動指定的目標 CLI（`copilot`、`codex`、`codex-app` 或 `claude`），將 BYOK 設定暫時注入子程序環境；你的 Shell 環境永不被改變。
 
 - `copilot`：四個 `COPILOT_*` 環境變數只注入到 `copilot` 子行程。
 - `codex`：API 金鑰以 `BYOK_CODEX_API_KEY` 環境變數注入 `codex` 子行程，並透過 `--config` 旗標覆寫模型與連線設定；`~/.codex/config.toml` 完全不受影響。
+- `codex-app`：與 `codex` 相同的 BYOK 機制，差異僅在於子程序命令列插入 `app` 子命令以啟動 Codex 桌面版（`codex app [--config ...] [...]`）。
 - `claude`：`ANTHROPIC_BASE_URL`、`ANTHROPIC_API_KEY`、`ANTHROPIC_MODEL` 三個環境變數只注入到 `claude` 子行程；`~/.claude/settings.json` 完全不受影響。
 
 **Targets：**
 
-| Target    | 說明                                                |
-| --------- | --------------------------------------------------- |
-| `copilot` | 以 BYOK profile 啟動 GitHub Copilot CLI。           |
-| `codex`   | 以 BYOK profile 啟動 OpenAI Codex CLI。             |
-| `claude`  | 以 BYOK profile 啟動 Claude Code。                  |
+| Target      | 說明                                                |
+| ----------- | --------------------------------------------------- |
+| `copilot`   | 以 BYOK profile 啟動 GitHub Copilot CLI。           |
+| `codex`     | 以 BYOK profile 啟動 OpenAI Codex CLI。             |
+| `codex-app` | 以 BYOK profile 啟動 OpenAI Codex 桌面版（`codex app`）。 |
+| `claude`    | 以 BYOK profile 啟動 Claude Code。                  |
 
 **旗標：**
 
@@ -215,7 +217,7 @@ default_profile: openai-official
 | `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
-| `-y`, `--yolo` | 啟用目標工具的 yolo 模式：copilot/codex 附加 `--yolo`，claude 附加 `--dangerously-skip-permissions`。 |
+| `-y`, `--yolo` | 啟用目標工具的 yolo 模式：copilot/codex/codex-app 附加 `--yolo`，claude 附加 `--dangerously-skip-permissions`。 |
 | `--`        | 之後的參數原樣透傳給目標工具（不解析、不驗證）。     |
 
 **範例：**
@@ -227,11 +229,13 @@ byok launch copilot
 # 覆寫模型啟動
 byok launch copilot --model gemma4
 byok launch codex --model gpt-4o
+byok launch codex-app --model gpt-4o
 byok launch claude --model claude-sonnet-4-5
 
 # 指定特定 profile 啟動
 byok launch copilot --profile local-ollama
 byok launch codex --profile openai-official
+byok launch codex-app --profile openai-official
 byok launch claude --profile openai-official
 
 # 使用自訂設定檔路徑
@@ -240,17 +244,20 @@ byok launch copilot --config /tmp/my-config.yaml --profile openai-official
 # 啟用 yolo 模式（-y 為 --yolo 短形式）
 byok launch copilot -y
 byok launch codex -y
+byok launch codex-app -y
 byok launch claude -y
 
 # 透傳參數給目標工具（-- 之後原樣轉發）
 byok launch copilot -- skills
 byok launch copilot -- continue --model x
 byok launch codex -- exec
+byok launch codex-app -- exec
 byok launch claude -- --resume
 
 # yolo + 透傳同時使用（yolo 旗標在前，透傳參數在後）
 byok launch copilot -y -- skills
 byok launch codex -y -- exec
+byok launch codex-app -y -- exec
 byok launch claude -y -- review this
 ```
 
@@ -479,6 +486,12 @@ go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0
 3. **不寫入 `~/.codex/config.toml`** — 所有覆寫僅透過命令列 `--config` 旗標傳遞，`byok` 不會讀取或修改你既有的 Codex 設定檔。
 
 命令列順序為 `codex [<--config ...>] [<--yolo>] [<透傳參數...]`，與 copilot 路徑一致（`--yolo` 在前、透傳在後）。
+
+### Codex App BYOK 運作原理
+
+執行 `byok launch codex-app` 時，機制與 `codex` 完全相同（同樣的 `BYOK_CODEX_API_KEY` 環境變數與 `--config` 旗標覆寫），唯一差異是命令列插入 `app` 子命令以啟動 Codex 桌面版：
+
+命令列順序為 `codex app [--config ...] [--yolo] [透傳參數...]`。同樣不寫入 `~/.codex/config.toml`。
 
 ### Claude BYOK 運作原理
 
