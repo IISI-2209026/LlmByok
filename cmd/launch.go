@@ -20,7 +20,7 @@ func newLaunchCmd() *cobra.Command {
 	var yolo bool
 	c := &cobra.Command{
 		Use:   "launch <target>",
-		Short: "以 BYOK profile 啟動 Copilot、Codex、Codex App 或 Claude CLI（暫時注入環境變數）",
+		Short: "以 BYOK profile 啟動 Copilot、Codex、Codex App、Claude 或 pi CLI（暫時注入環境變數）",
 		Long: `以設定檔中的 profile 啟動指定的目標 CLI，並將 BYOK 設定暫時
 注入子程序環境。父程序 byok 與您的 shell 環境永不被改變。
 
@@ -34,12 +34,15 @@ func newLaunchCmd() *cobra.Command {
   byok launch codex-app -y -- exec
   byok launch claude
   byok launch claude -y
-  byok launch claude --model claude-sonnet-4-5`,
+  byok launch claude --model claude-sonnet-4-5
+  byok launch pi
+  byok launch pi -y
+  byok launch pi --model gpt-4o`,
 		// 接受目標工具名稱（第一位置參數）與 -- 之後的透傳參數。
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex、codex-app、claude）\n")
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex、codex-app、claude、pi）\n")
 				return errExit
 			}
 			target := args[0]
@@ -53,8 +56,10 @@ func newLaunchCmd() *cobra.Command {
 				return runLaunchCodexApp(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			case "claude":
 				return runLaunchClaude(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			case "pi":
+				return runLaunchPi(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			default:
-				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex、codex-app、claude）\n", target)
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex、codex-app、claude、pi）\n", target)
 				return errExit
 			}
 		},
@@ -75,6 +80,7 @@ Targets:
   codex      以 BYOK profile 啟動 OpenAI Codex CLI
   codex-app  以 BYOK profile 啟動 OpenAI Codex 桌面版（codex app）
   claude     以 BYOK profile 啟動 Claude Code CLI
+  pi         以 BYOK profile 啟動 pi CLI
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}
@@ -272,6 +278,9 @@ func buildExtraArgs(yolo bool, target string, args []string) []string {
 		yoloLiteral := "--yolo"
 		if target == "claude" {
 			yoloLiteral = "--dangerously-skip-permissions"
+		}
+		if target == "pi" {
+			yoloLiteral = "--approve"
 		}
 		extraArgs = append(extraArgs, yoloLiteral)
 	}

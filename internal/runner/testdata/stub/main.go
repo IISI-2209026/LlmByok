@@ -11,6 +11,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -29,5 +30,17 @@ func main() {
 	argsOut := os.Getenv("BYOK_STUB_ARGS_OUT")
 	if argsOut != "" {
 		_ = os.WriteFile(argsOut, []byte(strings.Join(os.Args[1:], "\n")), 0600)
+	}
+
+	// 若指定了 models.json 輸出檔且 PI_CODING_AGENT_DIR 已設定，
+	// 則讀取該目錄下的 models.json 並寫入輸出檔，讓 pi 測試能驗證
+	// LaunchPi 寫入的 models.json 內容。向後相容：未設定時不執行。
+	modelsOut := os.Getenv("BYOK_STUB_MODELS_OUT")
+	piDir := os.Getenv("PI_CODING_AGENT_DIR")
+	if modelsOut != "" && piDir != "" {
+		data, err := os.ReadFile(filepath.Join(piDir, "models.json"))
+		if err == nil {
+			_ = os.WriteFile(modelsOut, data, 0600)
+		}
 	}
 }
