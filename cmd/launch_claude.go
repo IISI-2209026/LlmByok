@@ -93,8 +93,14 @@ func runLaunchClaude(cfgPath, profileName, model string, extraArgs []string, std
 	}
 	profile.APIKey = apiKey
 
-	// 7. 以暫時的 BYOK 環境變數啟動 claude（父程序環境不變）。
-	if err := runner.LaunchClaude(profile, model, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
+	// 7. 解析模型（--model 覆寫 / 單一候選直用 / 多候選互動選單 / 空則錯誤）。
+	resolvedModel, err := resolveModelForLaunch(profile, model, os.Stdin, stdout, stderr)
+	if err != nil {
+		return err
+	}
+
+	// 8. 以暫時的 BYOK 環境變數啟動 claude（父程序環境不變）。
+	if err := runner.LaunchClaude(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// claude 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

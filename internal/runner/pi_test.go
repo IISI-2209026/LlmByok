@@ -17,8 +17,8 @@ func TestBuildPiEnv_SetsPiCodingAgentDir(t *testing.T) {
 		Name:         "p",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test",
+		Models: []string{"gpt-4o"},
 	}
 	tempDir := "/tmp/pi-byok-test-dir"
 
@@ -45,8 +45,8 @@ func TestBuildPiEnv_OverwritesExistingPiCodingAgentDir(t *testing.T) {
 		Name:         "p",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test",
+		Models: []string{"gpt-4o"},
 	}
 	tempDir := "/new/pi/dir"
 
@@ -67,8 +67,8 @@ func TestBuildPiEnv_PreservesOtherVars(t *testing.T) {
 		Name:         "p",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test",
+		Models: []string{"gpt-4o"},
 	}
 	env := BuildPiEnv(&profile, "/tmp/pi-dir")
 
@@ -94,15 +94,15 @@ func TestLaunchPi_CreatesTempDirWithModelsJson(t *testing.T) {
 	parentBefore := snapshotEnv()
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-pi-integration",
-		DefaultModel: "gpt-4o",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-pi-integration",
+		Models:   []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchPi(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -154,7 +154,7 @@ func TestLaunchPi_CreatesTempDirWithModelsJson(t *testing.T) {
 	}
 }
 
-// TestLaunchPi_OverrideModel 驗證 modelOverride 非空時覆寫 default_model。
+// TestLaunchPi_OverrideModel 驗證傳入的 model 字串覆寫候選模型。
 func TestLaunchPi_OverrideModel(t *testing.T) {
 	stub := buildStub(t, filepath.Join("testdata", "stub"))
 
@@ -164,11 +164,11 @@ func TestLaunchPi_OverrideModel(t *testing.T) {
 	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -197,15 +197,15 @@ func TestLaunchPi_CleansUpTempDir(t *testing.T) {
 	t.Setenv("BYOK_STUB_OUT", outFile)
 
 	profile := &config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchPi(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -232,16 +232,16 @@ func TestLaunchPi_ExtraArgsPassthrough(t *testing.T) {
 	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
 
 	profile := &config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
 	extra := []string{"--approve", "fix this bug"}
-	if err := LaunchPi(profile, "", stub, extra, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, extra, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -269,15 +269,15 @@ func TestLaunchPi_ParentEnvUnchanged(t *testing.T) {
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 
 	profile := &config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
-	_ = LaunchPi(profile, "", stub, nil, nil, &stdout, &stderr)
+	_ = LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr)
 
 	if got := os.Getenv("BYOK_PARENT_MARKER"); got != "before" {
 		t.Errorf("BYOK_PARENT_MARKER = %q, want %q", got, "before")

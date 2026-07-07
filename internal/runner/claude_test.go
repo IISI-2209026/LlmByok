@@ -14,13 +14,13 @@ import (
 func TestBuildClaudeEnv_OverridesByokVars(t *testing.T) {
 	t.Setenv("BYOK_TEST_VAR", "hello")
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-claude-test",
-		DefaultModel: "claude-sonnet-4-5",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-claude-test",
+		Models:   []string{"claude-sonnet-4-5"},
 	}
-	env := BuildClaudeEnv(&profile, "")
+	env := BuildClaudeEnv(&profile, "claude-sonnet-4-5")
 
 	if got := getEnv(t, env, "ANTHROPIC_BASE_URL"); got != "https://api.openai.com/v1" {
 		t.Errorf("ANTHROPIC_BASE_URL = %q, want %q", got, "https://api.openai.com/v1")
@@ -36,14 +36,14 @@ func TestBuildClaudeEnv_OverridesByokVars(t *testing.T) {
 	}
 }
 
-// TestBuildClaudeEnv_ModelOverride 驗證 modelOverride 非空時覆寫 default_model。
+// TestBuildClaudeEnv_ModelOverride 驗證傳入的 model 字串覆寫候選模型。
 func TestBuildClaudeEnv_ModelOverride(t *testing.T) {
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "claude-sonnet-4-5",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"claude-sonnet-4-5"},
 	}
 	env := BuildClaudeEnv(&profile, "claude-opus-4-1")
 
@@ -60,13 +60,13 @@ func TestBuildClaudeEnv_ModelOverride(t *testing.T) {
 func TestBuildClaudeEnv_OverwritesExistingByokVar(t *testing.T) {
 	t.Setenv("ANTHROPIC_MODEL", "old-model")
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test",
-		DefaultModel: "new-model",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test",
+		Models:   []string{"new-model"},
 	}
-	env := BuildClaudeEnv(&profile, "")
+	env := BuildClaudeEnv(&profile, "new-model")
 
 	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "new-model" {
 		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "new-model")
@@ -91,11 +91,11 @@ func TestLaunchClaude_ByokVarsInjected(t *testing.T) {
 	parentBefore := snapshotEnv()
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-claude-integration",
-		DefaultModel: "claude-sonnet-4-5",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-claude-integration",
+		Models:   []string{"claude-sonnet-4-5"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -160,15 +160,15 @@ func TestLaunchClaude_NoExtraArgs(t *testing.T) {
 	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-claude-integration",
-		DefaultModel: "claude-sonnet-4-5",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-claude-integration",
+		Models:   []string{"claude-sonnet-4-5"},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchClaude(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchClaude(profile, "claude-sonnet-4-5", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("LaunchClaude failed: %v (stderr=%s)", err, stderr.String())
 	}
 

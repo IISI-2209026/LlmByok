@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -165,8 +166,14 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 	}
 	profile.APIKey = apiKey
 
-	// 7. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
-	if err := runner.Launch(profile, model, resolved, extraArgs, os.Stdin, os.Stdout, os.Stderr); err != nil {
+	// 7. 解析模型（--model 覆寫 / 單一候選直用 / 多候選互動選單 / 空則錯誤）。
+	resolvedModel, err := resolveModelForLaunch(profile, model, os.Stdin, os.Stdout, stderr)
+	if err != nil {
+		return err
+	}
+
+	// 8. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
+	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, os.Stdout, os.Stderr); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit
@@ -266,6 +273,62 @@ func availableProfileNames(profiles []config.Profile) []string {
 		names = append(names, p.Name)
 	}
 	return names
+}
+
+// stdinTerminalCheck 可被測試替換，判斷給定 reader 是否為終端機。
+// 預設為 isStdinTerminal（僅 *os.File 以 isTerminal 判定 fd）。
+var stdinTerminalCheck = isStdinTerminal
+
+// resolveModelForLaunch 依 spec「Launch Copilot with BYOK profile」的五條模型
+// 解析規則，從 profile 的候選 models 清單與 --model 旗標決定要注入子程序
+// 的單一模型字串。規則：
+//  1. modelFlag 非空 → 一律使用 modelFlag，不顯示互動選單。
+//  2. models 恰一個 → 直接使用該模型。
+//  3. models 多個且 stdin 為終端機 → 顯示上下鍵互動選單，回傳使用者選取項。
+//  4. models 多個但 stdin 非終端機 → 印出錯誤並回傳 errExit。
+//  5. models 為空 → 印出錯誤（提示 byok config set-models）並回傳 errExit。
+//
+// stdin/stdout 用於互動選單；stderr 用於錯誤訊息。回傳的 model 字串將
+// 傳入 runner 注入各 target 的模型環境變數，runner 不再自行回退 default_model。
+func resolveModelForLaunch(profile *config.Profile, modelFlag string, stdin io.Reader, stdout, stderr io.Writer) (string, error) {
+	if modelFlag != "" {
+		return modelFlag, nil
+	}
+	switch len(profile.Models) {
+	case 0:
+		fmt.Fprintf(stderr, "錯誤：profile %q 未設定任何候選模型\n", profile.Name)
+		fmt.Fprintf(stderr, "提示：執行 `byok config set-models %s --model <model>` 設定候選模型\n", profile.Name)
+		return "", errExit
+	case 1:
+		return profile.Models[0], nil
+	default:
+		// 多個候選：需互動選單，故 stdin 必須為終端機。
+		if !stdinTerminalCheck(stdin) {
+			fmt.Fprintf(stderr, "錯誤：profile %q 有多個候選模型但 stdin 非終端機\n", profile.Name)
+			fmt.Fprintf(stderr, "提示：請以 --model 旗標明確指定模型，或執行 `byok config set-models %s --model <model>` 縮減為單一候選\n", profile.Name)
+			return "", errExit
+		}
+		selected, err := config.SelectModel(profile.Models, stdin, stdout, func(int) bool { return true })
+		if err != nil {
+			if errors.Is(err, config.ErrSelectionCancelled) {
+				// 使用者主動取消（Ctrl-C/Esc）：簡潔提示後以非零結束碼退出。
+				fmt.Fprintf(stderr, "已取消模型選擇。\n")
+				return "", errExit
+			}
+			fmt.Fprintf(stderr, "錯誤：模型選擇失敗: %v\n", err)
+			return "", errExit
+		}
+		return selected, nil
+	}
+}
+
+// isStdinTerminal 判斷 r 是否為終端機檔案。非 *os.File 一律視為非終端機。
+func isStdinTerminal(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminal(int(f.Fd()))
 }
 
 // buildExtraArgs 組合 yolo 旗標與透傳參數為 extraArgs。

@@ -27,3 +27,4 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 
 <!-- SPECTRA:END -->
 
+請閱讀 AGENTS.md

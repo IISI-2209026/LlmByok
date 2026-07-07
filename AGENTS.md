@@ -37,7 +37,7 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 | 套件                 | 職責                                                                 |
 | -------------------- | -------------------------------------------------------------------- |
 | `cmd/byok`           | 程式入口（`main` package），呼叫 `cmd.NewRoot` 建立根指令。            |
-| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex` / `launch codex-app` / `launch claude` / `launch pi`）、`config` 子指令（`add`/`update`/`delete`/`list`/`set-default`）、`update` 子指令。 |
+| `cmd`                | cobra 指令定義與目標工具分派（`launch copilot` / `launch codex` / `launch codex-app` / `launch claude` / `launch pi`）、`config` 子指令（`add`/`update`/`delete`/`list`/`set-default`/`set-models`）、`update` 子指令。 |
 | `internal/config`    | YAML profile 的載入、儲存與驗證；設定檔預設位於 `~/.byok/config.yaml`；金鑰解析（`KeyResolver` 介面、`DefaultResolver`：keychain 優先 → 明碼 fallback）。 |
 | `internal/runner`    | BYOK 環境變數建置與子程序啟動（`Launch` for copilot、`LaunchCodex` for codex、`LaunchCodexApp` for codex app、`LaunchClaude` for claude、`LaunchPi` for pi）。 |
 | `internal/secret`    | OS keychain 抽象層（zalando/go-keyring）：`Store`/`Load`/`Delete`/`Exists`，service=`byok`、key=`profile:<name>`。 |
@@ -47,7 +47,10 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 ## 設定檔
 
 - 設定檔位置：`~/.byok/config.yaml`（可用 `--config` 覆寫）。
-- 每個 profile 包含 `name`、`provider`、`api_base`、`api_key`（omitempty，可選）、`default_model`。
+- 每個 profile 包含 `name`、`provider`、`api_base`、`api_key`（omitempty，可選）、`models`（候選模型清單，`[]string`）。舊版單一 `default_model` 欄位於載入時自動遷移為單元素 `models` 清單，儲存時不再寫出 `default_model`。
+- 候選模型由 `byok config set-models <profile name> --model ...` 維護（整批覆寫，`set-models` 為 `config` 子指令）；`config add`/`update` 不設定模型。
+- `config add`/`delete`/`set-default`/`update` 以第一位置參數接收 profile 名稱（不再使用 `--name` 旗標）。
+- `byok launch <target>` 模型解析：帶 `--model` 一律使用之；未帶時依 profile `models` 清單——僅一個直接使用、多個且 stdin 為終端機時顯示上下鍵互動選單（`internal/config.SelectModel`）、多個但非終端機時報錯、為空時報錯並提示 `byok config set-models`。互動選單於真實終端機下將 stdin 切換為 raw mode（`term.MakeRaw`，即時讀鍵、關閉回顯與行緩衝，使方向鍵以 ANSI 序列送達）並於 stdout 啟用虛擬終端機處理（Windows 透過 `SetConsoleMode`，Unix 原生支援，集中於 `internal/config/models_windows.go`/`models_unix.go`），以「❯ 游標 + 反白（`\x1b[7m`）」標記選取列原地重繪；Ctrl-C 或 Esc 取消（回傳 `config.ErrSelectionCancelled`，呼叫端以非零結束碼退出）。解析後的單一模型字串傳入 runner 注入環境變數，runner 不再自行回退 default_model。
 - 預設 provider 為 `openai`（空字串回退為 `openai`）；首版僅支援 `openai` provider 類型。
 - API 金鑰以 OS keychain 為主要儲存（`byok config add`/`update` 時以 `--key-storage keychain`（預設）指定），明碼 `api_key` 為 fallback；`launch` 時由 `KeyResolver` 自動解析。
 

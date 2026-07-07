@@ -36,8 +36,8 @@ func TestLaunchCodex_ByokApiKeyAndConfigInjected(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-integration",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-codex-integration",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -114,12 +114,12 @@ func TestLaunchCodex_NoExtraArgs(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-integration",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-codex-integration",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodex(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodex(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("LaunchCodex failed: %v (stderr=%s)", err, stderr.String())
 	}
 

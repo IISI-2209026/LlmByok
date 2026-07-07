@@ -25,8 +25,14 @@ func runLaunchCodex(cfgPath, profileName, model string, extraArgs []string, stdo
 		return err
 	}
 
+	// 解析模型（--model 覆寫 / 單一候選直用 / 多候選互動選單 / 空則錯誤）。
+	resolvedModel, err := resolveModelForLaunch(profile, model, os.Stdin, stdout, stderr)
+	if err != nil {
+		return err
+	}
+
 	// 以暫時的 BYOK 環境變數與 --config 覆寫啟動 codex（父程序環境不變）。
-	if err := runner.LaunchCodex(profile, model, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
+	if err := runner.LaunchCodex(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// codex 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

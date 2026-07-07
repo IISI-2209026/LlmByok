@@ -27,10 +27,11 @@ var byokKeys = map[string]struct{}{
 //	COPILOT_PROVIDER_BASE_URL = profile.APIBase
 //	COPILOT_PROVIDER_TYPE     = profile.Provider（空字串時回退為 "openai"）
 //	COPILOT_PROVIDER_API_KEY  = profile.APIKey
-//	COPILOT_MODEL             = modelOverride 非空時使用之，否則用 profile.DefaultModel
+//	COPILOT_MODEL             = model（呼叫端已解析的單一模型字串）
 //
-// 其餘現有環境變數保持不變。
-func BuildEnv(profile *config.Profile, modelOverride string) []string {
+// 其餘現有環境變數保持不變。model 為空時 COPILOT_MODEL 設為空字串；
+// 模型解析（候選清單選擇）由呼叫端（cmd/launch 層）完成。
+func BuildEnv(profile *config.Profile, model string) []string {
 	env := make([]string, 0, len(os.Environ())+4)
 
 	// 複製現有環境，略過既存的 BYOK 鍵，使下方的覆寫成為
@@ -46,14 +47,10 @@ func BuildEnv(profile *config.Profile, modelOverride string) []string {
 		env = append(env, entry)
 	}
 
-	// 附上四個覆寫後的 BYOK 項目。
+	// 附上覆寫後的 BYOK 項目。
 	provider := profile.Provider
 	if provider == "" {
 		provider = "openai"
-	}
-	model := modelOverride
-	if model == "" {
-		model = profile.DefaultModel
 	}
 
 	env = append(env,
@@ -78,9 +75,9 @@ func BuildEnv(profile *config.Profile, modelOverride string) []string {
 //
 // extraArgs 會原樣附加為子程序的命令列參數；傳入 nil 或空切片
 // 時不附加任何參數（與舊版行為一致）。
-func Launch(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+func Launch(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	cmd := exec.Command(exePath, extraArgs...)
-	cmd.Env = BuildEnv(profile, modelOverride)
+	cmd.Env = BuildEnv(profile, model)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

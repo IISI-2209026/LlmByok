@@ -8,4 +8,4 @@ package version
 
 // Version 是 byok 的 canonical base 版號（semver，無 prefix），可於 link 時以 ldflags 覆寫。
 // Release workflow 依分支附加後綴：main 為 <base>、develop 為 <base>-dev.<run_number>。
-var Version = "0.2.2"
+var Version = "0.2.3"

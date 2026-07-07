@@ -25,8 +25,8 @@ func TestLaunchCodexApp_AppSubcommandPrecedesConfig(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-app-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-codex-app-test",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -84,8 +84,8 @@ func TestLaunchCodexApp_NoExtraArgs(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-app-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-codex-app-test",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -130,8 +130,8 @@ func TestLaunchCodexApp_ParentEnvUnchanged(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-app-test",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-codex-app-test",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder

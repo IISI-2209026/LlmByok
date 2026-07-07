@@ -133,25 +133,25 @@ func TestPrompter_MultiplePromptsShareBuffer(t *testing.T) {
 }
 
 func TestApplyProfileUpdates_KeepsUnspecified(t *testing.T) {
-	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", DefaultModel: "m"}
-	ApplyProfileUpdates(p, nil, nil, nil)
-	if p.Provider != "openai" || p.APIBase != "https://x" || p.DefaultModel != "m" {
+	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []string{"m"}}
+	ApplyProfileUpdates(p, nil, nil)
+	if p.Provider != "openai" || p.APIBase != "https://x" || len(p.Models) != 1 || p.Models[0] != "m" {
 		t.Errorf("fields changed unexpectedly: %+v", p)
 	}
 }
 
 func TestApplyProfileUpdates_OverwritesSpecified(t *testing.T) {
-	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", DefaultModel: "m"}
+	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []string{"m"}}
 	newProvider := "anthropic"
 	newBase := "https://y"
-	ApplyProfileUpdates(p, &newProvider, &newBase, nil)
+	ApplyProfileUpdates(p, &newProvider, &newBase)
 	if p.Provider != "anthropic" {
 		t.Errorf("Provider = %q, want anthropic", p.Provider)
 	}
 	if p.APIBase != "https://y" {
 		t.Errorf("APIBase = %q, want https://y", p.APIBase)
 	}
-	if p.DefaultModel != "m" {
-		t.Errorf("DefaultModel = %q, want unchanged m", p.DefaultModel)
+	if len(p.Models) != 1 || p.Models[0] != "m" {
+		t.Errorf("Models = %v, want unchanged [m]", p.Models)
 	}
 }
