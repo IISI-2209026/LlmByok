@@ -1,5 +1,7 @@
 schema: spec-driven
 
+context: |
+  git commit 訊息使用繁體中文
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.

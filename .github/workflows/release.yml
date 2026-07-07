@@ -1,0 +1,315 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            ext: zip
+            binary: byok.exe
+          - os: linux
+            arch: amd64
+            ext: tar.gz
+            binary: byok
+          - os: darwin
+            arch: amd64
+            ext: tar.gz
+            binary: byok
+          - os: darwin
+            arch: arm64
+            ext: tar.gz
+            binary: byok
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev.${{ github.run_number }}"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev.${{ github.run_number }}"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=${{ steps.version.outputs.full_version }}" -o ${{ matrix.binary }} ./cmd/byok
+
+      - name: Package (zip)
+        if: matrix.ext == 'zip'
+        run: zip byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.zip ${{ matrix.binary }}
+
+      - name: Package (tar.gz)
+        if: matrix.ext == 'tar.gz'
+        run: tar czf byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz ${{ matrix.binary }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: byok-${{ matrix.os }}-${{ matrix.arch }}
+          path: byok-${{ steps.version.outputs.full_version }}-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.ext }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          PRERELEASE="false"
+          TAG="v${VERSION}"
+          case "${{ github.ref }}" in
+            refs/heads/main)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+            refs/heads/develop)
+              SUFFIX="-dev.${{ github.run_number }}"
+              PRERELEASE="true"
+              TAG="v${VERSION}-dev.${{ github.run_number }}"
+              ;;
+            *)
+              SUFFIX=""
+              PRERELEASE="false"
+              TAG="v${VERSION}"
+              ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate changelog
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODELS_TOKEN: ${{ secrets.MODELS_TOKEN }}
+        run: |
+          set +e
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+
+          # Resolve the diff base: previous release tag, or the empty tree for
+          # the first release (so all byok-relevant files appear as additions).
+          if [ -n "$PREV_TAG" ]; then
+            DIFF_BASE="$PREV_TAG"
+            LOG_RANGE="${PREV_TAG}..HEAD"
+          else
+            DIFF_BASE=$(git hash-object -t tree /dev/null)
+            LOG_RANGE="HEAD"
+          fi
+
+          # Byok-relevant diff (source + specs) sent verbatim to the model.
+          DIFF_BODY=$(git diff "$DIFF_BASE" HEAD -- cmd/ internal/ openspec/specs/ 2>/dev/null || true)
+          DIFF_STAT=$(git diff --stat "$DIFF_BASE" HEAD -- cmd/ internal/ openspec/specs/ 2>/dev/null || true)
+
+          # Workflow/doc-only changes are summarized at a high level (not sent verbatim)
+          # to keep the prompt bounded and the changelog focused on byok behavior.
+          OTHER_SUMMARY=$(git log --pretty=format:"- %s" "$LOG_RANGE" -- .github/workflows/ README.md AGENTS.md 2>/dev/null || true)
+
+          if [ -z "$DIFF_BODY" ] && [ -z "$OTHER_SUMMARY" ]; then
+            DIFF_BODY="(本次 release 範圍內無 byok 程式碼或規格變更)"
+          fi
+
+          # Prefer a dedicated Models token (needs `models:read`), fall back to GITHUB_TOKEN.
+          TOKEN_VALUE="${MODELS_TOKEN:-$GITHUB_TOKEN}"
+          AI_BODY=""
+
+          if [ -n "$TOKEN_VALUE" ]; then
+            {
+              echo '你是 byok 專案的 release changelog 撰寫助手。請根據下方提供的 git diff（僅限 cmd/、internal/、openspec/specs/ 路徑）與其他變更摘要，產生繁體中文 Markdown changelog，必須包含以下三個分類區段（若該分類無內容可省略該區段）：'
+              echo ''
+              echo '## 新增功能'
+              echo '## 優化功能'
+              echo '## 修復功能'
+              echo ''
+              echo '規則：'
+              echo '- 只描述與 byok 程式行為、CLI 介面、設定檔、規格相關的變更。'
+              echo '- 每個條目以一行簡述，聚焦使用者可感知的影響。'
+              echo '- 不要輸出 diff 本身、不要輸出額外說明文字、不要用程式碼區塊包覆整份輸出。'
+            } > /tmp/system_prompt.txt
+
+            {
+              echo "以下是本次 release 範圍內 byok 程式碼與規格的變更。"
+              echo ""
+              echo "### 變更統計"
+              echo '```'
+              echo "$DIFF_STAT"
+              echo '```'
+              echo ""
+              echo "### 工作流程與文件變更摘要（非逐字）"
+              echo "$OTHER_SUMMARY"
+              echo ""
+              echo "### byok 程式碼與規格 diff"
+              echo '```diff'
+              echo "$DIFF_BODY"
+              echo '```'
+            } > /tmp/user_prompt.txt
+
+            PAYLOAD=$(jq -n \
+              --rawfile s /tmp/system_prompt.txt \
+              --rawfile u /tmp/user_prompt.txt \
+              '{model:"gpt-4o-mini",messages:[{role:"system",content:$s},{role:"user",content:$u}],temperature:0.2,max_tokens:1500}')
+
+            HTTP_RESPONSE=$(curl -sS --max-time 60 -w "\n%{http_code}" \
+              -H "Authorization: Bearer ${TOKEN_VALUE}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" \
+              "https://models.inference.ai.azure.com/chat/completions")
+
+            HTTP_BODY=$(printf '%s' "$HTTP_RESPONSE" | sed '$d')
+            HTTP_CODE=$(printf '%s' "$HTTP_RESPONSE" | tail -n1)
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              AI_BODY=$(printf '%s' "$HTTP_BODY" | jq -r '.choices[0].message.content // empty' 2>/dev/null || true)
+            else
+              echo "::warning::GitHub Models call failed (HTTP $HTTP_CODE); falling back to commit-history changelog"
+            fi
+          else
+            echo "::notice::Models token unset; using commit-history changelog fallback"
+          fi
+
+          # Accept the AI output only when it contains the required categorization headings.
+          if [ -n "$AI_BODY" ] && printf '%s' "$AI_BODY" | grep -qE "新增功能|優化功能|修復功能"; then
+            printf '%s\n' "$AI_BODY" > changelog.md
+            echo "::notice::changelog generated via GitHub Models"
+          else
+            # Fallback: commit-history conventional-commit prefix categorization.
+            if [ -n "$PREV_TAG" ]; then
+              COMMITS=$(git log --pretty=format:"%s" "${PREV_TAG}..HEAD")
+            else
+              COMMITS=$(git log --pretty=format:"%s")
+            fi
+            {
+              FEATS=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?!?:" || true)
+              if [ -n "$FEATS" ]; then
+                echo "## 新增功能"
+                echo "$FEATS"
+                echo ""
+              fi
+              REFS=$(echo "$COMMITS" | grep -E "^(refactor|perf)(\(.+\))?!?:" || true)
+              if [ -n "$REFS" ]; then
+                echo "## 優化功能"
+                echo "$REFS"
+                echo ""
+              fi
+              FIXES=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?!?:" || true)
+              if [ -n "$FIXES" ]; then
+                echo "## 修復功能"
+                echo "$FIXES"
+                echo ""
+              fi
+            } > changelog.md
+            echo "::notice::changelog generated via commit-history fallback"
+          fi
+
+          echo "--- changelog.md ---"
+          cat changelog.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          body_path: changelog.md
+          files: artifacts/*
+
+  notify:
+    name: Pushover Notification
+    needs: [build, release]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' internal/version/version.go)
+          SUFFIX=""
+          case "${{ github.ref }}" in
+            refs/heads/develop)
+              SUFFIX="-dev.${{ github.run_number }}"
+              ;;
+          esac
+          echo "full_version=${VERSION}${SUFFIX}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine overall status
+        id: overall
+        run: |
+          if [ "${{ needs.build.result }}" = "success" ] && [ "${{ needs.release.result }}" = "success" ]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+            echo "emoji=✅" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            echo "emoji=❌" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pushover notification
+        uses: umahmood/pushover-actions@main
+        env:
+          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
+          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+        with:
+          status: ${{ steps.overall.outputs.status }}
+          title: '${{ steps.overall.outputs.emoji }} LlmByok Release ${{ steps.version.outputs.full_version }}'
+          message: |
+            分支: ${{ github.ref_name }}
+            版本: ${{ steps.version.outputs.full_version }}
+            狀態: ${{ steps.overall.outputs.status }}
+          priority: ${{ steps.overall.outputs.status == 'success' && '0' || '1' }}
+          sound: ${{ steps.overall.outputs.status == 'success' && 'pushover' || 'falling' }}
+          url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          url_title: '查看 Release 詳情'
