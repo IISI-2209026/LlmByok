@@ -8,7 +8,7 @@ TBD - created by archiving change 'add-self-update'. Update Purpose after archiv
 
 ### Requirement: `byok update` self-update command
 
-The CLI SHALL provide a `byok update` subcommand that checks the latest GitHub Release matching the current binary's update channel, downloads the platform-appropriate release asset, and atomically replaces the currently running executable with the downloaded binary. The update channel SHALL be derived from the current version string: a version containing `-dev.` belongs to the `dev` channel and SHALL only consider releases marked `prerelease=true`; any other version belongs to the `stable` channel and SHALL only consider releases marked `prerelease=false`. The command SHALL NOT cross channels unless the user explicitly overrides the channel via the `--channel` flag. The command SHALL accept a `--channel` flag accepting the values `prerelease` or `release` (mapped to the `dev` or `stable` channel respectively); when provided, the command SHALL query the specified channel regardless of the current version, enabling a stable binary to update to a prerelease or vice versa. When `--channel` is omitted, the auto-detected channel SHALL be used. The command SHALL reject any other `--channel` value with an error and exit 1 without making an API request. When the current version is already the latest in its (possibly overridden) channel, the command SHALL print a "already up to date" message and exit 0 without modifying any file. The command SHALL accept a `--check` flag that only queries and prints the latest available version without downloading or replacing any file; `--check` and `--channel` SHALL be combinable.
+The CLI SHALL provide a `byok update` subcommand that checks the latest GitHub Release matching the current binary's update channel, downloads the platform-appropriate release asset, and atomically replaces the currently running executable with the downloaded binary. The update channel SHALL be derived from the current version string: a version containing `-dev.` belongs to the `dev` channel and SHALL only consider releases marked `prerelease=true`; any other version belongs to the `stable` channel and SHALL only consider releases marked `prerelease=false`. The command SHALL NOT cross channels unless the user explicitly overrides the channel via the `--channel` flag. The command SHALL accept a `--channel` flag accepting the values `prerelease` or `release` (mapped to the `dev` or `stable` channel respectively); when provided, the command SHALL query the specified channel regardless of the current version, enabling a stable binary to update to a prerelease or vice versa. When `--channel` is omitted, the auto-detected channel SHALL be used. The command SHALL reject any other `--channel` value with an error and exit 1 without making an API request. When the current version is already the latest in its (possibly overridden) channel, the command SHALL print a "already up to date" message and exit 0 without modifying any file. The command SHALL accept a `--check` flag that only queries and prints the latest available version without downloading or replacing any file; `--check` and `--channel` SHALL be combinable. On Windows, the executable replacement SHALL use a rename-then-move strategy: the currently running executable SHALL be renamed to a backup name before moving the new binary into the original path, so that the replacement succeeds even when the target file is locked by the running process. The backup file SHALL be deleted if possible, or scheduled for deletion at next reboot via `MOVEFILE_DELAY_UNTIL_REBOOT` if it remains locked.
 
 #### Scenario: Stable binary updates to newer stable release
 
@@ -55,12 +55,34 @@ The CLI SHALL provide a `byok update` subcommand that checks the latest GitHub R
 - **WHEN** the GitHub Releases API request fails or times out
 - **THEN** `byok update` prints an error and exits 1 without modifying any file
 
+#### Scenario: Windows self-update replaces running executable via rename-then-move
+
+- **WHEN** `byok update` is invoked on Windows and the target executable (`byok.exe`) is locked by the currently running process and a newer in-channel release is available
+- **THEN** the command SHALL rename the running executable to a backup name (e.g., `byok.exe.old`), move the downloaded temporary binary to the original executable path, and exit 0 with the success message; the original executable path SHALL contain the new version binary
+
+#### Scenario: Windows backup file scheduled for deletion at reboot
+
+- **WHEN** the backup file (`byok.exe.old`) cannot be deleted immediately after the rename-then-move because it is still locked by the running process
+- **THEN** the updater SHALL schedule deletion of the backup file at next reboot via `MOVEFILE_DELAY_UNTIL_REBOOT` and the update SHALL still be considered successful
+
+#### Scenario: Windows rename-then-move failure restores backup
+
+- **WHEN** the rename-then-move strategy fails after renaming the running executable to a backup name but before moving the new binary into place
+- **THEN** the updater SHALL attempt to restore the backup to the original path and SHALL exit 1 with an error message
+
+#### Scenario: Existing backup file from prior update is overwritten
+
+- **WHEN** a backup file (`byok.exe.old`) from a prior update already exists in the target directory
+- **THEN** the updater SHALL overwrite or remove the existing backup before renaming the current executable, and the update SHALL proceed normally
+
 
 <!-- @trace
-source: add-self-update
-updated: 2026-07-06
+source: fix-windows-self-update-access-denied
+updated: 2026-07-07
 code:
-  - .agents/skills/go-dev-setup/SKILL.md
+  - internal/updater/replace_windows.go
+tests:
+  - internal/updater/replace_windows_test.go
 -->
 
 ---
