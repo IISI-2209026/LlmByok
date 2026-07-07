@@ -26,8 +26,14 @@ func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout,
 		return err
 	}
 
+	// 解析模型（--model 覆寫 / 單一候選直用 / 多候選互動選單 / 空則錯誤）。
+	resolvedModel, err := resolveModelForLaunch(profile, model, os.Stdin, stdout, stderr)
+	if err != nil {
+		return err
+	}
+
 	// 以臨時目錄 + models.json + PI_CODING_AGENT_DIR 啟動 pi（父程序環境不變）。
-	if err := runner.LaunchPi(profile, model, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
+	if err := runner.LaunchPi(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// pi 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

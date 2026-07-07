@@ -1,10 +1,4 @@
-# byok-config Specification
-
-## Purpose
-
-TBD - created by archiving change 'add-byok-cli'. Update Purpose after archive.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Config file location
 
@@ -25,46 +19,6 @@ The config file SHALL default to `~/.byok/config.yaml`. The `--config` flag SHAL
 - **WHEN** the user runs a command that writes the config file after loading a legacy profile
 - **THEN** the written file contains the profile's `models` list and does not contain a `default_model` field
 
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
 ### Requirement: Add a profile
 
 The `byok config add <profile name>` command SHALL append a new profile to the config file. The profile name SHALL be supplied as the first positional argument; the legacy `--name` flag SHALL NOT be accepted. The command SHALL accept the flags `--provider`, `--api-base`, `--api-key`, and `--key-storage plaintext|keychain`. Candidate models SHALL NOT be set by `add`; they are managed by `byok config set-models`. The new profile SHALL be created with an empty `models` list. The command SHALL support two modes:
@@ -116,46 +70,6 @@ When the config file does not exist, it SHALL be created. When a profile with th
 - **WHEN** user runs `byok config add openai-official ...` and a profile named `openai-official` already exists in the config file
 - **THEN** the command prints an error stating the profile name already exists and exits with code 1 without modifying the config file
 
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
 ### Requirement: List profiles with masked API key
 
 The `byok config list` command SHALL print every profile in the config file showing `name`, `provider`, `api_base`, the candidate `models` list, and a masked `api_key`. The `models` list SHALL be rendered as a comma-separated string (e.g. `gpt-4o, gpt-4o-mini`); an empty list SHALL be rendered as an empty string. The masked `api_key` SHALL display only the first 4 and last 4 characters separated by an ellipsis, with all middle characters hidden. When the `api_key` is empty, the displayed value SHALL be an empty string.
@@ -185,46 +99,6 @@ The output SHALL be a column-aligned table with a header row followed by one row
 | `sk-1234` | `sk-1...1234` | short key still masked with available chars |
 | `` (empty) | `` (empty) | empty key shown as empty |
 
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
 ### Requirement: Remove a profile
 
 The `byok config delete <profile name>` command SHALL remove the profile identified by the positional profile name argument from the config file; the legacy `--name` flag SHALL NOT be accepted. After removing the profile, the command SHALL attempt to delete the keychain entry `profile:<name>` via `internal/secret.Delete`; the profile deletion SHALL succeed regardless of whether the keychain entry existed. When the keychain delete fails for any reason other than not-found, the command SHALL print a warning naming the profile and the failure but SHALL still exit with code 0. When the named profile does not exist in the config file, the command SHALL print an error and exit with code 1 without modifying the file or touching the keychain. When the removed profile was the `default_profile`, the `default_profile` field SHALL be cleared.
@@ -249,46 +123,6 @@ The `byok config delete <profile name>` command SHALL remove the profile identif
 - **WHEN** user runs `byok config delete local-ollama` and `internal/secret.Delete` returns a backend-unavailable error after the profile was removed
 - **THEN** the command prints a warning naming `local-ollama` and the failure, and exits with code 0
 
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
 ### Requirement: Set default profile
 
 The `byok config add` command SHALL set the new profile as `default_profile` when no `default_profile` is currently set in the config file. The `byok config` family SHALL provide a `set-default <profile name>` subcommand that updates the `default_profile` field to the named profile supplied as a positional argument; the legacy `--name` flag SHALL NOT be accepted. The command SHALL error with exit code 1 when the named profile does not exist.
@@ -303,96 +137,6 @@ The `byok config add` command SHALL set the new profile as `default_profile` whe
 - **WHEN** user runs `byok config set-default local-ollama` and the `local-ollama` profile exists
 - **THEN** the `default_profile` field is updated to `local-ollama`
 
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
-### Requirement: Config file parse error reporting
-
-When the config file exists but cannot be parsed as valid YAML matching the expected schema, every `byok config` subcommand SHALL print an error message containing the file path and the parse error detail, then exit with code 1.
-
-#### Scenario: Malformed config file
-
-- **WHEN** user runs `byok config list` and `~/.byok/config.yaml` contains invalid YAML
-- **THEN** the command prints an error containing the config file path and the YAML parse error and exits with code 1
-
-<!-- @trace
-source: add-byok-cli
-updated: 2026-07-05
-code:
-  - main.go
-  - cmd/root.go
-  - cmd/config.go
-  - cmd/launch.go
-  - internal/runner/testdata/stub/main.go
-  - go.mod
-  - internal/config/config.go
-  - README.md
-  - Makefile
-  - internal/runner/runner.go
-  - go.sum
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
-  - cmd/launch_test.go
-  - internal/runner/runner_test.go
--->
-
----
-### Requirement: List profiles with key source indicator
-
-The `byok config list` command SHALL, for each profile, display the key source alongside the existing masked key column. The source indicator SHALL be `keychain` when the key was resolved from the OS keychain, `plaintext` when resolved from the config file `api_key` field, and `missing` when neither source yielded a key. The masked key display SHALL use the resolved key value regardless of source.
-
-#### Scenario: Mixed key sources in list
-
-- **WHEN** user runs `byok config list` and profile `openai-official` has its key in the keychain while profile `local-ollama` has a plaintext `api_key` and profile `empty-profile` has no key in either source
-- **THEN** the printed output shows `openai-official` with source `keychain`, `local-ollama` with source `plaintext`, and `empty-profile` with source `missing`
-
-<!-- @trace
-source: add-keychain-secret-storage
-updated: 2026-07-06
-code:
-  - .agents/skills/go-dev-setup/SKILL.md
--->
-
----
 ### Requirement: Update an existing profile
 
 The `byok config update <profile name>` command SHALL update an existing profile in the config file. The profile name SHALL be supplied as the first positional argument; the legacy `--name` flag SHALL NOT be accepted. The command SHALL accept the flags `--provider`, `--api-base`, `--api-key`, and `--key-storage plaintext|keychain`. Candidate models SHALL NOT be editable via `update`; they are managed by `byok config set-models`. When a flag is omitted, the corresponding profile field SHALL retain its current value; `--api-key` omitted means the key is left untouched (no keychain rewrite). When `--api-key` is provided, the command SHALL apply the same key-storage handling as `byok config add` (default `keychain`). The command SHALL support terminal interactive mode identical to `byok config add` when no profile-shaping flags (`--provider`, `--api-base`, `--api-key`) are supplied. The positional profile name SHALL be required in both modes. When the named profile does not exist, the command SHALL print an error and exit with code 1 without modifying the file.
@@ -412,46 +156,8 @@ The `byok config update <profile name>` command SHALL update an existing profile
 - **WHEN** user runs `byok config update nonexistent`
 - **THEN** the command prints an error stating the profile was not found and exits with code 1 without modifying the config file
 
+## ADDED Requirements
 
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->
-
----
 ### Requirement: Set candidate models for a profile
 
 The `byok config set-models <profile name>` command SHALL set the candidate model list for an existing profile, fully replacing the profile's `models` list. The command SHALL be registered as a subcommand of `byok config` (alongside `add`/`delete`/`set-default`/`update`/`list`), not as a top-level command. The profile name SHALL be supplied as the first positional argument. The command SHALL accept a repeatable `--model` flag; each occurrence appends one candidate model identifier to the new list, in the order supplied. The command SHALL support two modes:
@@ -490,41 +196,3 @@ When the resulting `models` list is empty, the command SHALL print an error stat
 
 - **WHEN** user pipes input into `byok config set-models openai-official` (stdin is not a terminal) and provides no `--model` flag
 - **THEN** the command prints an error directing the user to use the `--model` flag and exits with code 1
-
-<!-- @trace
-source: add-model-selection
-updated: 2026-07-07
-code:
-  - cmd/launch_codex_app.go
-  - cmd/config.go
-  - cmd/set_models.go
-  - internal/config/config.go
-  - internal/config/models_windows.go
-  - internal/runner/pi.go
-  - internal/config/models.go
-  - internal/runner/runner.go
-  - internal/runner/claude.go
-  - cmd/launch.go
-  - CLAUDE.md
-  - AGENTS.md
-  - cmd/launch_codex.go
-  - cmd/launch_pi.go
-  - README.md
-  - cmd/launch_claude.go
-  - internal/runner/codex.go
-  - internal/config/models_unix.go
-tests:
-  - internal/runner/launch_integration_test.go
-  - internal/runner/runner_test.go
-  - cmd/launch_model_test.go
-  - internal/config/models_test.go
-  - cmd/set_models_test.go
-  - internal/runner/codex_test.go
-  - internal/runner/claude_test.go
-  - internal/runner/codex_launch_test.go
-  - internal/config/interactive_test.go
-  - internal/runner/pi_test.go
-  - internal/runner/codex_app_test.go
-  - internal/config/config_test.go
-  - cmd/config_test.go
--->

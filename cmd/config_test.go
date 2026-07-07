@@ -48,7 +48,7 @@ func TestConfigAdd_NewProfileCreatesFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".byok", "config.yaml")
 	var out bytes.Buffer
 	if err := runConfigAdd(path, "openai-official", "openai",
-		"https://api.openai.com/v1", "sk-xxxx", "gpt-4o", "keychain", &out); err != nil {
+		"https://api.openai.com/v1", "sk-xxxx", "keychain", &out); err != nil {
 		t.Fatalf("runConfigAdd: %v", err)
 	}
 	if !strings.Contains(out.String(), "已新增 profile") {
@@ -81,11 +81,11 @@ func TestConfigAdd_NewProfileCreatesFile(t *testing.T) {
 func TestConfigAdd_DuplicateNameErrors(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\ndefault_profile: openai-official\n")
 	before, _ := os.ReadFile(path)
 	var out bytes.Buffer
 	err := runConfigAdd(path, "openai-official", "openai",
-		"https://api.openai.com/v1", "sk-yyyy", "gpt-4o", "keychain", &out)
+		"https://api.openai.com/v1", "sk-yyyy", "keychain", &out)
 	if err == nil {
 		t.Fatalf("expected error for duplicate name, got nil (output: %s)", out.String())
 	}
@@ -104,7 +104,7 @@ func TestConfigAdd_KeyStoragePlaintextClearsKeychain(t *testing.T) {
 	}
 	var out bytes.Buffer
 	if err := runConfigAdd(path, "my-profile", "openai",
-		"https://api.openai.com/v1", "sk-new", "gpt-4o", "plaintext", &out); err != nil {
+		"https://api.openai.com/v1", "sk-new", "plaintext", &out); err != nil {
 		t.Fatalf("runConfigAdd: %v", err)
 	}
 	data, _ := os.ReadFile(path)
@@ -124,7 +124,7 @@ func TestConfigAdd_KeychainBackendUnavailableFails(t *testing.T) {
 	keys = failKeyStore{storeErr: secret.ErrBackendUnavailable}
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	var out bytes.Buffer
-	err := runConfigAdd(path, "p", "openai", "https://x", "sk-key", "m", "keychain", &out)
+	err := runConfigAdd(path, "p", "openai", "https://x", "sk-key", "keychain", &out)
 	if err == nil {
 		t.Fatalf("expected error for keychain backend unavailable, got nil")
 	}
@@ -141,7 +141,7 @@ func TestConfigAdd_EmptyApiKeyNoKeyHandling(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	var out bytes.Buffer
-	if err := runConfigAdd(path, "nokey", "openai", "https://x", "", "m", "keychain", &out); err != nil {
+	if err := runConfigAdd(path, "nokey", "openai", "https://x", "", "keychain", &out); err != nil {
 		t.Fatalf("runConfigAdd: %v", err)
 	}
 	data, _ := os.ReadFile(path)
@@ -158,7 +158,7 @@ func TestConfigAdd_FirstProfileBecomesDefault(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	var out bytes.Buffer
-	if err := runConfigAdd(path, "first", "openai", "https://x", "sk-k", "m", "keychain", &out); err != nil {
+	if err := runConfigAdd(path, "first", "openai", "https://x", "sk-k", "keychain", &out); err != nil {
 		t.Fatalf("runConfigAdd: %v", err)
 	}
 	if !strings.Contains(out.String(), "預設") {
@@ -171,10 +171,11 @@ func TestConfigAdd_FirstProfileBecomesDefault(t *testing.T) {
 func TestConfigAdd_InteractivePromptsAllFields(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	input := strings.NewReader("interactive-profile\nopenai\nhttps://api.test.com/v1\ngpt-4o-mini\nsk-inter-key\nkeychain\n")
+	// 互動模式不再提示模型：依序為 provider、api_base、api_key、金鑰儲存。
+	input := strings.NewReader("openai\nhttps://api.test.com/v1\nsk-inter-key\nkeychain\n")
 	var out bytes.Buffer
 	p := &config.Prompter{In: input, Out: &out, IsTTY: func(int) bool { return false }}
-	if err := runConfigAddInteractive(path, "keychain", p, &out); err != nil {
+	if err := runConfigAddInteractive(path, "interactive-profile", "keychain", p, &out); err != nil {
 		t.Fatalf("runConfigAddInteractive: %v", err)
 	}
 	data, _ := os.ReadFile(path)
@@ -197,6 +198,7 @@ func TestConfigAdd_InteractiveNonTTYFails(t *testing.T) {
 	cmd := newConfigAddCmd()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"some-profile"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected error for interactive mode in non-TTY, got nil")
 	}
@@ -207,26 +209,29 @@ func TestConfigAdd_InteractiveNonTTYFails(t *testing.T) {
 func TestConfigUpdate_KeepsUnspecifiedFields(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    default_model: old-model\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    models:\n      - old-model\ndefault_profile: p\n")
 	var out bytes.Buffer
-	if err := runConfigUpdate(path, "p", nil, nil, nil, "", false, "keychain", &out); err != nil {
+	if err := runConfigUpdate(path, "p", nil, nil, "", false, "keychain", &out); err != nil {
 		t.Fatalf("runConfigUpdate: %v", err)
 	}
 	cfg, _ := config.Load(path)
 	prof := cfg.Profiles[0]
-	if prof.Provider != "openai" || prof.APIBase != "https://old.com" || prof.DefaultModel != "old-model" {
+	if prof.Provider != "openai" || prof.APIBase != "https://old.com" {
 		t.Errorf("fields changed unexpectedly: %+v", prof)
+	}
+	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+		t.Errorf("Models should be unchanged: %+v", prof)
 	}
 }
 
 func TestConfigUpdate_OverwritesSpecifiedFields(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    default_model: old-model\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    models:\n      - old-model\ndefault_profile: p\n")
 	var out bytes.Buffer
 	provider := "openai"
 	apiBase := "https://new.com"
-	if err := runConfigUpdate(path, "p", &provider, &apiBase, nil, "", false, "keychain", &out); err != nil {
+	if err := runConfigUpdate(path, "p", &provider, &apiBase, "", false, "keychain", &out); err != nil {
 		t.Fatalf("runConfigUpdate: %v", err)
 	}
 	cfg, _ := config.Load(path)
@@ -234,17 +239,17 @@ func TestConfigUpdate_OverwritesSpecifiedFields(t *testing.T) {
 	if prof.Provider != "openai" || prof.APIBase != "https://new.com" {
 		t.Errorf("fields not updated: %+v", prof)
 	}
-	if prof.DefaultModel != "old-model" {
-		t.Errorf("DefaultModel should be unchanged: %+v", prof)
+	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+		t.Errorf("Models should be unchanged: %+v", prof)
 	}
 }
 
 func TestConfigUpdate_ApiKeyIntoKeychain(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: p\n")
 	var out bytes.Buffer
-	if err := runConfigUpdate(path, "p", nil, nil, nil, "sk-update-key", true, "keychain", &out); err != nil {
+	if err := runConfigUpdate(path, "p", nil, nil, "sk-update-key", true, "keychain", &out); err != nil {
 		t.Fatalf("runConfigUpdate: %v", err)
 	}
 	stored, err := secret.Load("p")
@@ -267,9 +272,9 @@ func TestConfigUpdate_ApiKeyClearByKey(t *testing.T) {
 	if err := secret.Store("p", "sk-old"); err != nil {
 		t.Fatalf("secret.Store: %v", err)
 	}
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    api_key: \"\"\n    default_model: m\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    api_key: \"\"\n    models:\n      - m\ndefault_profile: p\n")
 	var out bytes.Buffer
-	if err := runConfigUpdate(path, "p", nil, nil, nil, "", true, "keychain", &out); err != nil {
+	if err := runConfigUpdate(path, "p", nil, nil, "", true, "keychain", &out); err != nil {
 		t.Fatalf("runConfigUpdate: %v", err)
 	}
 	// keychain 應被清除
@@ -282,9 +287,9 @@ func TestConfigUpdate_ApiKeyClearByKey(t *testing.T) {
 func TestConfigUpdate_NonExistentRejected(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: p\n")
 	var out bytes.Buffer
-	err := runConfigUpdate(path, "nonexistent", nil, nil, nil, "", false, "keychain", &out)
+	err := runConfigUpdate(path, "nonexistent", nil, nil, "", false, "keychain", &out)
 	if err == nil {
 		t.Fatal("expected error for non-existent profile, got nil")
 	}
@@ -294,7 +299,7 @@ func TestConfigUpdate_NonExistentConfigRejected(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	var out bytes.Buffer
-	err := runConfigUpdate(path, "p", nil, nil, nil, "", false, "keychain", &out)
+	err := runConfigUpdate(path, "p", nil, nil, "", false, "keychain", &out)
 	if err == nil {
 		t.Fatal("expected error for non-existent config, got nil")
 	}
@@ -305,8 +310,9 @@ func TestConfigUpdate_NonExistentConfigRejected(t *testing.T) {
 func TestConfigUpdate_InteractiveUpdatesFields(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    default_model: old-model\ndefault_profile: p\n")
-	input := strings.NewReader("openai\nhttps://new.com\nnew-model\nsk-new-key\nkeychain\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://old.com\n    models:\n      - old-model\ndefault_profile: p\n")
+	// 互動模式不再提示模型：依序為 provider、api_base、api_key、金鑰儲存。
+	input := strings.NewReader("openai\nhttps://new.com\nsk-new-key\nkeychain\n")
 	var out bytes.Buffer
 	p := &config.Prompter{In: input, Out: &out, IsTTY: func(int) bool { return false }}
 	if err := runConfigUpdateInteractive(path, "p", "keychain", p, &out); err != nil {
@@ -314,8 +320,11 @@ func TestConfigUpdate_InteractiveUpdatesFields(t *testing.T) {
 	}
 	cfg, _ := config.Load(path)
 	prof := cfg.Profiles[0]
-	if prof.APIBase != "https://new.com" || prof.DefaultModel != "new-model" {
-		t.Errorf("fields not updated: %+v", prof)
+	if prof.APIBase != "https://new.com" {
+		t.Errorf("APIBase not updated: %+v", prof)
+	}
+	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+		t.Errorf("Models should be unchanged by update: %+v", prof)
 	}
 	stored, err := secret.Load("p")
 	if err != nil {
@@ -332,8 +341,9 @@ func TestConfigUpdate_InteractiveKeepsExistingKeyOnEmpty(t *testing.T) {
 	if err := secret.Store("p", "sk-existing"); err != nil {
 		t.Fatalf("secret.Store: %v", err)
 	}
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: p\n")
-	input := strings.NewReader("openai\nhttps://x\nm\n\nkeychain\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: p\n")
+	// provider、api_base、api_key（空）、金鑰儲存。
+	input := strings.NewReader("openai\nhttps://x\n\nkeychain\n")
 	var out bytes.Buffer
 	p := &config.Prompter{In: input, Out: &out, IsTTY: func(int) bool { return false }}
 	if err := runConfigUpdateInteractive(path, "p", "keychain", p, &out); err != nil {
@@ -351,8 +361,8 @@ func TestConfigUpdate_InteractiveKeepsExistingKeyOnEmpty(t *testing.T) {
 func TestConfigUpdate_InteractiveNonExistentRejected(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: other\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: other\n")
-	input := strings.NewReader("\n\n\n\nkeychain\n")
+	writeFile(t, path, "profiles:\n  - name: other\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: other\n")
+	input := strings.NewReader("\n\n\nkeychain\n")
 	var out bytes.Buffer
 	p := &config.Prompter{In: input, Out: &out, IsTTY: func(int) bool { return false }}
 	err := runConfigUpdateInteractive(path, "nonexistent", "keychain", p, &out)
@@ -369,7 +379,7 @@ func TestConfigDelete_SyncsKeychain(t *testing.T) {
 	if err := secret.Store("doomed", "sk-doomed"); err != nil {
 		t.Fatalf("secret.Store: %v", err)
 	}
-	writeFile(t, path, "profiles:\n  - name: doomed\n    provider: openai\n    api_base: https://x\n    api_key: \"\"\n    default_model: m\ndefault_profile: doomed\n")
+	writeFile(t, path, "profiles:\n  - name: doomed\n    provider: openai\n    api_base: https://x\n    api_key: \"\"\n    models:\n      - m\ndefault_profile: doomed\n")
 	var out bytes.Buffer
 	if err := runConfigDelete(path, "doomed", &out); err != nil {
 		t.Fatalf("runConfigDelete: %v", err)
@@ -393,7 +403,7 @@ func TestConfigDelete_SyncsKeychain(t *testing.T) {
 func TestConfigDelete_NoKeychainEntrySucceeds(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: nokc\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: nokc\n")
+	writeFile(t, path, "profiles:\n  - name: nokc\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: nokc\n")
 	var out bytes.Buffer
 	if err := runConfigDelete(path, "nokc", &out); err != nil {
 		t.Fatalf("runConfigDelete: %v", err)
@@ -407,7 +417,7 @@ func TestConfigDelete_NoKeychainEntrySucceeds(t *testing.T) {
 func TestConfigDelete_NonExistentRejected(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: p\n")
 	before, _ := os.ReadFile(path)
 	var out bytes.Buffer
 	err := runConfigDelete(path, "nonexistent", &out)
@@ -426,7 +436,7 @@ func TestConfigDelete_KeychainFailureWarnsButExits0(t *testing.T) {
 	keys = failKeyStore{deleteErr: fmt.Errorf("db locked")}
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: m\ndefault_profile: p\n")
+	writeFile(t, path, "profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    models:\n      - m\ndefault_profile: p\n")
 	var out bytes.Buffer
 	if err := runConfigDelete(path, "p", &out); err != nil {
 		t.Fatalf("delete should succeed (exit 0) even if keychain fails, got: %v", err)
@@ -441,7 +451,7 @@ func TestConfigDelete_KeychainFailureWarnsButExits0(t *testing.T) {
 func TestConfigList_Output(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-abcdefghijklmnopqrstuvwxyz1234567890\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-abcdefghijklmnopqrstuvwxyz1234567890\n    models:\n      - gpt-4o\ndefault_profile: openai-official\n")
 	var out bytes.Buffer
 	if err := runConfigList(path, &out); err != nil {
 		t.Fatalf("runConfigList: %v", err)
@@ -452,11 +462,86 @@ func TestConfigList_Output(t *testing.T) {
 	if !strings.Contains(out.String(), "sk-a...7890") {
 		t.Errorf("output missing masked api key, got: %s", out.String())
 	}
+	if !strings.Contains(out.String(), "gpt-4o") {
+		t.Errorf("output missing models list, got: %s", out.String())
+	}
+}
+
+func TestConfigList_EmptyModelsShownEmpty(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "profiles:\n  - name: empty\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\ndefault_profile: empty\n")
+	var out bytes.Buffer
+	if err := runConfigList(path, &out); err != nil {
+		t.Fatalf("runConfigList: %v", err)
+	}
+	if !strings.Contains(out.String(), "empty") {
+		t.Errorf("output missing profile name, got: %s", out.String())
+	}
+}
+
+// TestConfigList_ColumnsAligned 驗證 `byok config list` 表格各欄在顯示寬度
+// 上對齊：CJK 標題（名稱/模型/來源佔 2 欄）與超長模型欄（如
+// "glm-5.2, kimi-k2.7-code" 超過舊固定欄寬）不應造成後續欄位錯位。
+// 比對標題行與資料行各欄首的顯示寬度位置必須一致。
+func TestConfigList_ColumnsAligned(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	// 模型欄內容長度超過舊固定欄寬 22，且含中文標題，藉此回歸兩類錯位。
+	writeFile(t, path, "profiles:\n  - name: litellm\n    provider: openai\n    api_base: https://llm.homeplus.i234.me\n    api_key: sk-abcdefghijklmnopqrstuvwxyzcruw\n    models:\n      - glm-5.2\n      - kimi-k2.7-code\ndefault_profile: litellm\n")
+	var out bytes.Buffer
+	if err := runConfigList(path, &out); err != nil {
+		t.Fatalf("runConfigList: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected header + row, got %d lines", len(lines))
+	}
+	header := fieldDisplayStarts(lines[0])
+	row := fieldDisplayStarts(lines[1])
+	if len(header) != len(row) {
+		t.Fatalf("column count mismatch: header %d vs row %d", len(header), len(row))
+	}
+	for i := range header {
+		if header[i] != row[i] {
+			t.Errorf("column %d misaligned: header starts at display col %d, row at %d\nheader: %q\nrow:   %q",
+				i, header[i], row[i], lines[0], lines[1])
+		}
+	}
+}
+
+// fieldDisplayStarts 回傳一行中各欄首字元的顯示寬度位置；以 ≥2 連續空白
+// 視為欄分隔，CJK 字元以顯示寬度 2 計（與 displayWidth/runeWidth 一致）。
+func fieldDisplayStarts(line string) []int {
+	var starts []int
+	col, runSpaces := 0, 0
+	inField := false
+	for _, r := range line {
+		if r == ' ' {
+			if inField {
+				runSpaces = 1
+				inField = false
+			} else {
+				runSpaces++
+			}
+			col++
+			continue
+		}
+		if !inField {
+			if len(starts) == 0 || runSpaces >= 2 {
+				starts = append(starts, col)
+			}
+			runSpaces = 0
+			inField = true
+		}
+		col += runeWidth(r)
+	}
+	return starts
 }
 
 func TestSetDefault_Existing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\n  - name: local-ollama\n    provider: openai\n    api_base: http://localhost:11434\n    api_key: \"\"\n    default_model: llama3.2\ndefault_profile: openai-official\n")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    models:\n      - gpt-4o\n  - name: local-ollama\n    provider: openai\n    api_base: http://localhost:11434\n    api_key: \"\"\n    models:\n      - llama3.2\ndefault_profile: openai-official\n")
 	var out bytes.Buffer
 	if err := runConfigSetDefault(path, "local-ollama", &out); err != nil {
 		t.Fatalf("runConfigSetDefault: %v", err)
@@ -469,11 +554,57 @@ func TestSetDefault_Existing(t *testing.T) {
 
 func TestSetDefault_NotFound(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    models:\n      - gpt-4o\ndefault_profile: openai-official\n")
 	var out bytes.Buffer
 	err := runConfigSetDefault(path, "nonexistent", &out)
 	if err == nil {
 		t.Fatalf("expected error for missing profile, got nil")
+	}
+}
+
+// --- Positional argument form ---
+
+// TestConfigAdd_MissingPositionalNameRejected 驗證未提供位置參數時回傳錯誤。
+func TestConfigAdd_MissingPositionalNameRejected(t *testing.T) {
+	cmd := newConfigAddCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing positional profile name, got nil")
+	}
+}
+
+// TestConfigDelete_MissingPositionalNameRejected 驗證 delete 未提供位置參數時回傳錯誤。
+func TestConfigDelete_MissingPositionalNameRejected(t *testing.T) {
+	cmd := newConfigDeleteCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing positional profile name, got nil")
+	}
+}
+
+// TestConfigSetDefault_MissingPositionalNameRejected 驗證 set-default 未提供位置參數時回傳錯誤。
+func TestConfigSetDefault_MissingPositionalNameRejected(t *testing.T) {
+	cmd := newConfigSetDefaultCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing positional profile name, got nil")
+	}
+}
+
+// TestConfigUpdate_MissingPositionalNameRejected 驗證 update 未提供位置參數時回傳錯誤。
+func TestConfigUpdate_MissingPositionalNameRejected(t *testing.T) {
+	cmd := newConfigUpdateCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing positional profile name, got nil")
 	}
 }
 
@@ -498,8 +629,8 @@ func TestConfigRemovedCommands_UnknownCommand(t *testing.T) {
 
 // failKeyStore 是測試用 keyStore，可注入 Store/Delete 的失敗。
 type failKeyStore struct {
-	storeErr   error
-	deleteErr  error
+	storeErr    error
+	deleteErr   error
 	storeCalled bool
 }
 

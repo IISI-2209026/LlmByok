@@ -15,7 +15,8 @@ func TestConfigStructYAMLTags(t *testing.T) {
     provider: openai
     api_base: https://api.openai.com/v1
     api_key: sk-xxxx
-    default_model: gpt-4o
+    models:
+      - gpt-4o
 default_profile: openai-official
 `
 	var cfg Config
@@ -38,11 +39,74 @@ default_profile: openai-official
 	if p.APIKey != "sk-xxxx" {
 		t.Errorf("APIKey = %q, want %q", p.APIKey, "sk-xxxx")
 	}
-	if p.DefaultModel != "gpt-4o" {
-		t.Errorf("DefaultModel = %q, want %q", p.DefaultModel, "gpt-4o")
+	if len(p.Models) != 1 || p.Models[0] != "gpt-4o" {
+		t.Errorf("Models = %v, want [gpt-4o]", p.Models)
 	}
 	if cfg.DefaultProfile != "openai-official" {
 		t.Errorf("DefaultProfile = %q, want %q", cfg.DefaultProfile, "openai-official")
+	}
+}
+
+// TestLoad_LegacyDefaultModelMigrated 驗證含舊 default_model 欄位且無 models
+// 清單的設定檔載入後，default_model 遷移為單元素 models 清單。
+func TestLoad_LegacyDefaultModelMigrated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	src := []byte("profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    default_model: gpt-4o\ndefault_profile: openai-official\n")
+	if err := os.WriteFile(path, src, 0600); err != nil {
+		t.Fatalf("setup write failed: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(cfg.Profiles) != 1 {
+		t.Fatalf("expected 1 profile, got %d", len(cfg.Profiles))
+	}
+	p := cfg.Profiles[0]
+	if len(p.Models) != 1 || p.Models[0] != "gpt-4o" {
+		t.Errorf("Models = %v, want [gpt-4o] (legacy default_model migrated)", p.Models)
+	}
+}
+
+// TestLoad_ModelsPreservedOverLegacy 驗證已含 models 清單的 profile 不被
+// 舊 default_model 欄位覆寫。
+func TestLoad_ModelsPreservedOverLegacy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	src := []byte("profiles:\n  - name: p\n    provider: openai\n    api_base: https://x\n    default_model: legacy\n    models:\n      - a\n      - b\ndefault_profile: p\n")
+	if err := os.WriteFile(path, src, 0600); err != nil {
+		t.Fatalf("setup write failed: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(cfg.Profiles[0].Models) != 2 || cfg.Profiles[0].Models[0] != "a" || cfg.Profiles[0].Models[1] != "b" {
+		t.Errorf("Models = %v, want [a b] (existing models must not be overwritten by legacy default_model)", cfg.Profiles[0].Models)
+	}
+}
+
+// TestSave_OmitsLegacyDefaultModel 驗證儲存後的檔案不含 default_model 欄位，
+// 僅含 models 清單。
+func TestSave_OmitsLegacyDefaultModel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := &Config{
+		Profiles: []Profile{
+			{Name: "p", Provider: "openai", APIBase: "https://x", Models: []string{"gpt-4o"}},
+		},
+		DefaultProfile: "p",
+	}
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back failed: %v", err)
+	}
+	if strings.Contains(string(data), "default_model") {
+		t.Errorf("saved file still contains legacy default_model field:\n%s", string(data))
+	}
+	if !strings.Contains(string(data), "models:") {
+		t.Errorf("saved file missing models field:\n%s", string(data))
 	}
 }
 

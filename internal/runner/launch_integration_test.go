@@ -33,8 +33,8 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test-integration",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test-integration",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
@@ -95,8 +95,8 @@ func TestLaunchIntegration_ExtraArgsForwarded(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test-integration",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test-integration",
+		Models: []string{"gpt-4o"},
 	}
 
 	extraArgs := []string{"--yolo", "--continue", "--model", "x"}
@@ -151,12 +151,12 @@ func TestLaunchIntegration_NoExtraArgs(t *testing.T) {
 		Name:         "openai-official",
 		Provider:     "openai",
 		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-test-integration",
-		DefaultModel: "gpt-4o",
+		APIKey: "sk-test-integration",
+		Models: []string{"gpt-4o"},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 

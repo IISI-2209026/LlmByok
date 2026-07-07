@@ -12,11 +12,11 @@ import (
 
 // Profile 描述單一 LLM provider 設定。
 type Profile struct {
-	Name         string `yaml:"name"`
-	Provider     string `yaml:"provider"`
-	APIBase      string `yaml:"api_base"`
-	APIKey       string `yaml:"api_key,omitempty"`
-	DefaultModel string `yaml:"default_model"`
+	Name     string   `yaml:"name"`
+	Provider string   `yaml:"provider"`
+	APIBase  string   `yaml:"api_base"`
+	APIKey   string   `yaml:"api_key,omitempty"`
+	Models   []string `yaml:"models"`
 }
 
 // Config 是頂層設定結構，持有設定檔清單以及未指定設定檔時
@@ -56,7 +56,43 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("解析設定檔 %s: %w", path, err)
 	}
+	migrateLegacyDefaultModel(cfg, data)
 	return cfg, nil
+}
+
+// migrateLegacyDefaultModel 將舊版含 default_model 欄位的 profile 遷移為
+// 單元素 models 清單。僅當 profile 的 models 為空且 default_model 非空時
+// 遷移；已含 models 的 profile 不受影響。遷移在載入時發生，儲存時因
+// Profile 結構已無 default_model 欄位，舊欄位自然不再寫出。
+func migrateLegacyDefaultModel(cfg *Config, data []byte) {
+	if cfg == nil {
+		return
+	}
+	// 以舊版結構再次解析同一份資料以取得 default_model 欄位；
+	// 新結構已不再承載該欄位。
+	var legacy struct {
+		Profiles []struct {
+			Name         string `yaml:"name"`
+			DefaultModel string `yaml:"default_model"`
+		} `yaml:"profiles"`
+	}
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return
+	}
+	byName := make(map[string]string, len(legacy.Profiles))
+	for _, lp := range legacy.Profiles {
+		if lp.DefaultModel != "" {
+			byName[lp.Name] = lp.DefaultModel
+		}
+	}
+	for i := range cfg.Profiles {
+		p := &cfg.Profiles[i]
+		if len(p.Models) == 0 {
+			if dm, ok := byName[p.Name]; ok && dm != "" {
+				p.Models = []string{dm}
+			}
+		}
+	}
 }
 
 // Save 將 cfg 序列化為 YAML 並寫入 path，會建立缺失的上層目錄。
@@ -129,7 +165,8 @@ var Resolver KeyResolver = DefaultResolver{}
 // ApplyProfileUpdates 將非 nil 指標的欄位套用至既有 profile；nil 指標表示
 // 「未提供該欄位」，保留原值。呼叫端以指標表達「未提供」，避免零值與
 // 「清空」語意混淆。name 不在此更新（profile 名稱為識別碼，不可變更）。
-func ApplyProfileUpdates(p *Profile, provider, apiBase, defaultModel *string) {
+// 候選模型清單（Models）不由此函式更新，應透過 `byok config set-models` 維護。
+func ApplyProfileUpdates(p *Profile, provider, apiBase *string) {
 	if p == nil {
 		return
 	}
@@ -138,8 +175,5 @@ func ApplyProfileUpdates(p *Profile, provider, apiBase, defaultModel *string) {
 	}
 	if apiBase != nil {
 		p.APIBase = *apiBase
-	}
-	if defaultModel != nil {
-		p.DefaultModel = *defaultModel
 	}
 }

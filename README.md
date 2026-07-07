@@ -163,24 +163,29 @@ profiles:
     provider: openai
     api_base: https://api.openai.com/v1
     api_key: sk-your-openai-key-here
-    default_model: gpt-4o
+    models:
+      - gpt-4o
+      - gpt-4o-mini
   - name: local-ollama
     provider: openai
     api_base: http://localhost:11434
     api_key: ""
-    default_model: llama3.2
+    models:
+      - llama3.2
 default_profile: openai-official
 ```
 
 ### 欄位說明
 
-| 欄位           | 說明                                                                          |
-| -------------- | ---------------------------------------------------------------------------- |
-| `name`         | profile 名稱，用於 `--profile` 選取。檔案內必須唯一。                          |
-| `provider`     | provider 類型。第一版僅接受 `openai`。                                          |
-| `api_base`     | OpenAI 相容端點的 Base URL（例如 `https://api.openai.com/v1`）。               |
-| `api_key`      | API 金鑰字串。本機伺服器（如 Ollama）不需金鑰時用 `""`。                          |
-| `default_model`| 模型名稱，依目標工具注入為對應環境變數（Copilot: `COPILOT_MODEL`、Codex: `--config model=`、Claude: `ANTHROPIC_MODEL`；Pi: `--model` CLI 旗標）；若 `--model` 有指定則以 `--model` 為準。 |
+| 欄位       | 說明                                                                          |
+| ---------- | ---------------------------------------------------------------------------- |
+| `name`     | profile 名稱，用於 `--profile` 選取。檔案內必須唯一。                          |
+| `provider` | provider 類型。第一版僅接受 `openai`。                                          |
+| `api_base` | OpenAI 相容端點的 Base URL（例如 `https://api.openai.com/v1`）。               |
+| `api_key`  | API 金鑰字串。本機伺服器（如 Ollama）不需金鑰時用 `""`。                          |
+| `models`   | 候選模型清單。`byok launch <target>` 在未帶 `--model` 時依此清單決定模型：僅一個則直接使用；多個且 stdin 為終端機時顯示上下鍵互動選單；多個但非終端機時報錯（請改用 `--model`）；為空時報錯（請先以 `byok config set-models` 設定）。模型依目標工具注入為對應環境變數（Copilot: `COPILOT_MODEL`、Codex: `--config model=`、Claude: `ANTHROPIC_MODEL`；Pi: `--model` CLI 旗標）。若 `--model` 有指定則一律以 `--model` 為準。 |
+
+> **舊設定檔相容性**：若你的設定檔仍使用舊版單一 `default_model` 欄位，`byok` 載入時會自動將其遷移為單元素 `models` 清單；下次寫入時舊欄位即不再出現。
 
 ### 安全性提醒
 
@@ -217,7 +222,7 @@ default_profile: openai-official
 
 | 旗標        | 說明                                              |
 | ----------- | ------------------------------------------------ |
-| `--model`   | 此次啟動覆寫 profile 的 `default_model`。          |
+| `--model`   | 此次啟動明確指定模型，覆寫 profile 的候選 `models` 清單（不顯示互動選單）。 |
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
 | `-y`, `--yolo` | 啟用目標工具的 yolo 模式：copilot/codex/codex-app 附加 `--yolo`，claude 附加 `--dangerously-skip-permissions`，pi 附加 `--approve`。 |
@@ -226,10 +231,11 @@ default_profile: openai-official
 **範例：**
 
 ```bash
-# 使用預設 profile 與其 default_model 啟動 copilot
+# 使用預設 profile 啟動 copilot
+# profile 僅一個候選模型時直接使用；多個時於終端顯示上下鍵選單
 byok launch copilot
 
-# 覆寫模型啟動
+# 明確指定模型啟動（覆寫候選清單，不顯示選單）
 byok launch copilot --model gemma4
 byok launch codex --model gpt-4o
 byok launch codex-app --model gpt-4o
@@ -269,46 +275,45 @@ byok launch claude -y -- review this
 byok launch pi -y -- --continue
 ```
 
-### `byok config add`
+### `byok config add <profile name>`
 
-新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。
+新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。profile 名稱為第一位置參數；候選模型由 `byok config set-models` 維護，`add` 不設定模型。
 
-未提供任何欄位旗標（`--name`、`--provider`、`--api-base`、`--default-model`、`--api-key`）時進入**互動模式**，於終端依序提示各欄位與金鑰儲存選擇（需 TTY，非 TTY 印錯並 exit 1）。
+未提供任何欄位旗標（`--provider`、`--api-base`、`--api-key`）時進入**互動模式**，於終端依序提示各欄位與金鑰儲存選擇（需 TTY，非 TTY 印錯並 exit 1）。
 
 **旗標：**
 
 | 旗標             | 說明                                       |
 | ---------------- | ----------------------------------------- |
-| `--name`         | profile 名稱。                              |
+| `<profile name>` | profile 名稱（第一位置參數，必填）。           |
 | `--provider`     | provider 類型（目前僅支援 `openai`）。        |
 | `--api-base`     | API base URL。                            |
 | `--api-key`      | API 金鑰（無金鑰的本機伺服器用 `""`）。        |
-| `--default-model`| 預設模型名稱。                               |
 | `--key-storage`  | 金鑰儲存位置：`keychain`（預設）或 `plaintext`。|
 | `--config`       | 覆寫設定檔路徑。                            |
 
 **範例：**
 
 ```bash
-byok config add \
-  --name openai-official \
+byok config add openai-official \
   --provider openai \
   --api-base https://api.openai.com/v1 \
-  --api-key sk-xxxx \
-  --default-model gpt-4o
+  --api-key sk-xxxx
 # 金鑰預設存入 keychain；設定檔中不含明碼 api_key
+# 接著以 config set-models 設定候選模型：
+byok config set-models openai-official --model gpt-4o --model gpt-4o-mini
 ```
 
 互動模式：
 
 ```bash
-byok config add
-# 依序提示 profile 名稱、provider、API base URL、預設模型、API key、金鑰儲存
+byok config add openai-official
+# 依序提示 provider、API base URL、API key、金鑰儲存（不再提示模型）
 ```
 
-### `byok config update`
+### `byok config update <profile name>`
 
-更新既有 profile 的欄位。未提供的欄位保留原值。僅提供 `--name` 而未提供其他欄位旗標時進入**互動模式**（需 TTY）。
+更新既有 profile 的欄位。未提供的欄位保留原值。profile 名稱為第一位置參數（必填）；未提供任何欄位旗標時進入**互動模式**（需 TTY）。候選模型由 `byok config set-models` 維護，`update` 不修改模型清單。
 
 提供 `--api-key` 時依 `--key-storage` 處理金鑰；`--api-key ""` 清除既有金鑰（同步刪除 keychain 條目）。
 
@@ -316,24 +321,45 @@ byok config add
 
 | 旗標             | 說明                                       |
 | ---------------- | ----------------------------------------- |
-| `--name`         | 要更新的 profile 名稱（必填）。             |
+| `<profile name>` | 要更新的 profile 名稱（第一位置參數，必填）。   |
 | `--provider`     | provider 類型。                            |
 | `--api-base`     | API base URL。                            |
 | `--api-key`      | API 金鑰（設為空字串清除金鑰）。              |
-| `--default-model`| 預設模型名稱。                               |
 | `--key-storage`  | 金鑰儲存位置：`keychain`（預設）或 `plaintext`。|
 | `--config`       | 覆寫設定檔路徑。                            |
 
 **範例：**
 
 ```bash
-byok config update --name openai-official --api-key sk-new-key
+byok config update openai-official --api-key sk-new-key
 # 新金鑰存入 keychain，舊金鑰被覆寫
+```
+
+### `byok config set-models <profile name>`
+
+設定指定 profile 的候選模型清單，**整批覆寫**原有清單。profile 名稱為第一位置參數。可重複使用 `--model` 指定多個候選模型；未提供 `--model` 且 stdin 為終端機時進入互動模式，逐行輸入模型識別碼直至空行結束。profile 不存在時報錯且不修改檔案；結果為空清單時報錯。此指令為 `byok config` 的子指令。
+
+**旗標：**
+
+| 旗標             | 說明                                       |
+| ---------------- | ----------------------------------------- |
+| `<profile name>` | profile 名稱（第一位置參數，必填）。           |
+| `--model`        | 候選模型識別碼（可重複，如 `--model a --model b`）。 |
+| `--config`       | 覆寫設定檔路徑。                            |
+
+**範例：**
+
+```bash
+byok config set-models openai-official --model gpt-4o --model gpt-4o-mini
+# 覆寫為 [gpt-4o, gpt-4o-mini]
+
+# 互動模式（終端，逐行輸入至空行）：
+byok config set-models openai-official
 ```
 
 ### `byok config list`
 
-列出設定檔中所有 profile。API 金鑰會遮罩：只顯示前 4 與後 4 個字元，中間以 `...` 連接；空金鑰顯示為空。
+列出設定檔中所有 profile，包含每個 profile 的候選 `models` 清單（逗號分隔）。API 金鑰會遮罩：只顯示前 4 與後 4 個字元，中間以 `...` 連接；空金鑰顯示為空。
 
 **旗標：**
 
@@ -347,38 +373,38 @@ byok config update --name openai-official --api-key sk-new-key
 byok config list
 ```
 
-### `byok config delete`
+### `byok config delete <profile name>`
 
-依名稱刪除 profile，並同步清理 keychain 中的對應金鑰（盡力而為；keychain 刪除失敗僅印警告，profile 仍已移除）。找不到 profile 時報錯且不碰 keychain。若被刪除的 profile 正是 `default_profile`，則該欄位會被清空。
+依名稱刪除 profile，並同步清理 keychain 中的對應金鑰（盡力而為；keychain 刪除失敗僅印警告，profile 仍已移除）。找不到 profile 時報錯且不碰 keychain。若被刪除的 profile 正是 `default_profile`，則該欄位會被清空。profile 名稱為第一位置參數。
 
 **旗標：**
 
-| 旗標      | 說明                          |
-| --------- | ----------------------------- |
-| `--name`  | 要刪除的 profile 名稱（必填）。 |
-| `--config`| 覆寫設定檔路徑。                |
+| 旗標             | 說明                          |
+| ---------------- | ----------------------------- |
+| `<profile name>` | 要刪除的 profile 名稱（第一位置參數，必填）。 |
+| `--config`       | 覆寫設定檔路徑。                |
 
 **範例：**
 
 ```bash
-byok config delete --name local-ollama
+byok config delete local-ollama
 ```
 
-### `byok config set-default`
+### `byok config set-default <profile name>`
 
-變更 `launch` 在未指定 `--profile` 時使用的 `default_profile`。
+變更 `launch` 在未指定 `--profile` 時使用的 `default_profile`。profile 名稱為第一位置參數。
 
 **旗標：**
 
-| 旗標      | 說明                            |
-| --------- | ------------------------------- |
-| `--name`  | 要設為預設的 profile 名稱（必填）。 |
-| `--config`| 覆寫設定檔路徑。                  |
+| 旗標             | 說明                            |
+| ---------------- | ------------------------------- |
+| `<profile name>` | 要設為預設的 profile 名稱（第一位置參數，必填）。 |
+| `--config`       | 覆寫設定檔路徑。                  |
 
 **範例：**
 
 ```bash
-byok config set-default --name local-ollama
+byok config set-default local-ollama
 ```
 
 ### 金鑰管理（OS keychain）
@@ -392,7 +418,7 @@ byok config set-default --name local-ollama
 
 `byok launch` 啟動時會自動依以下順序解析金鑰：**keychain 優先 → 設定檔明碼 fallback → 兩者皆無則報錯**。
 
-> **遷移路徑**：舊版獨立指令 `set-key`/`del-key`/`import-keys` 已移除。請改用 `byok config update --name <profile> --api-key <key>` 更新金鑰，或 `byok config delete` 刪除。
+> **遷移路徑**：舊版獨立指令 `set-key`/`del-key`/`import-keys` 已移除。請改用 `byok config update <profile> --api-key <key>` 更新金鑰，或 `byok config delete <profile>` 刪除。
 >
 > **Linux 注意事項**：keychain 功能依賴 Secret Service D-Bus API（如 `gnome-keyring` 或 `KWallet`）。若環境中無 secret-service daemon，keychain 操作會回傳 backend-unavailable 錯誤；此時可改用 `--key-storage plaintext` 將金鑰以明碼寫入設定檔。
 

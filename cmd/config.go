@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/IISI-2209026/LlmByok/internal/config"
 	"github.com/IISI-2209026/LlmByok/internal/secret"
@@ -41,6 +42,7 @@ func newConfigCmd() *cobra.Command {
 	c.AddCommand(newConfigListCmd())
 	c.AddCommand(newConfigDeleteCmd())
 	c.AddCommand(newConfigSetDefaultCmd())
+	c.AddCommand(newSetModelsCmd())
 	return c
 }
 
@@ -59,66 +61,65 @@ func stdinIsTerminal(cmd *cobra.Command) bool {
 }
 
 func newConfigAddCmd() *cobra.Command {
-	var name, provider, apiBase, apiKey, defaultModel, keyStorage, cfgPath string
+	var provider, apiBase, apiKey, keyStorage, cfgPath string
 	c := &cobra.Command{
-		Use:   "add",
+		Use:   "add <profile name>",
 		Short: "新增 BYOK profile 至設定檔",
 		Long: `新增一個 profile 至設定檔。若檔案不存在則會建立。
 當未設定預設 profile 時，新 profile 會成為預設值。
 若同名 profile 已存在，則回傳錯誤且不修改檔案。
 
-未提供任何欄位旗標時進入互動模式（需 TTY）。
+profile 名稱為第一位置參數；候選模型由 byok config set-models 維護，
+add 不設定模型。未提供任何欄位旗標時進入互動模式（需 TTY）。
 金鑰預設存入 OS keychain，可用 --key-storage plaintext 改存明碼。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("必須提供 profile 名稱作為位置參數")
+			}
+			name := args[0]
 			fs := cmd.Flags()
-			interactive := !fs.Changed("name") &&
-				!fs.Changed("provider") &&
+			interactive := !fs.Changed("provider") &&
 				!fs.Changed("api-base") &&
-				!fs.Changed("default-model") &&
 				!fs.Changed("api-key")
 			if interactive {
 				if !stdinIsTerminal(cmd) {
-					return fmt.Errorf("互動模式需要終端機；請改用參數模式（--name, --api-base, --default-model 等）")
+					return fmt.Errorf("互動模式需要終端機；請改用參數模式（--api-base 等）")
 				}
 				p := &config.Prompter{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), IsTTY: term.IsTerminal}
-				return runConfigAddInteractive(cfgPath, keyStorage, p, cmd.OutOrStdout())
-			}
-			if name == "" {
-				return fmt.Errorf("--name 為必填")
+				return runConfigAddInteractive(cfgPath, name, keyStorage, p, cmd.OutOrStdout())
 			}
 			if apiBase == "" {
 				return fmt.Errorf("--api-base 為必填")
 			}
-			if defaultModel == "" {
-				return fmt.Errorf("--default-model 為必填")
-			}
-			return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage, cmd.OutOrStdout())
+			return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, keyStorage, cmd.OutOrStdout())
 		},
 		SilenceUsage: false,
 	}
-	c.Flags().StringVar(&name, "name", "", "profile 名稱")
 	c.Flags().StringVar(&provider, "provider", "openai", "provider 類型（首版僅支援 openai）")
 	c.Flags().StringVar(&apiBase, "api-base", "", "API base URL")
 	c.Flags().StringVar(&apiKey, "api-key", "", "API key（無驗證端點可留空）")
-	c.Flags().StringVar(&defaultModel, "default-model", "", "預設模型識別碼")
 	c.Flags().StringVar(&keyStorage, "key-storage", "keychain", "金鑰儲存位置（keychain|plaintext）")
 	addConfigFlag(c, &cfgPath)
 	return c
 }
 
 func newConfigUpdateCmd() *cobra.Command {
-	var name, provider, apiBase, apiKey, defaultModel, keyStorage, cfgPath string
+	var provider, apiBase, apiKey, keyStorage, cfgPath string
 	c := &cobra.Command{
-		Use:   "update",
+		Use:   "update <profile name>",
 		Short: "更新既有 BYOK profile",
 		Long: `更新既有 profile 的欄位。未提供的欄位保留原值。
-僅提供 --name 時進入互動模式（需 TTY）。
-提供 --api-key 時依 --key-storage 處理金鑰。`,
+profile 名稱為第一位置參數（必填）。未提供任何欄位旗標時進入互動模式（需 TTY）。
+提供 --api-key 時依 --key-storage 處理金鑰。候選模型由 byok config set-models 維護，
+update 不修改模型清單。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("必須提供 profile 名稱作為位置參數")
+			}
+			name := args[0]
 			fs := cmd.Flags()
 			interactive := !fs.Changed("provider") &&
 				!fs.Changed("api-base") &&
-				!fs.Changed("default-model") &&
 				!fs.Changed("api-key") &&
 				!fs.Changed("key-storage")
 			if interactive {
@@ -128,28 +129,22 @@ func newConfigUpdateCmd() *cobra.Command {
 				p := &config.Prompter{In: cmd.InOrStdin(), Out: cmd.OutOrStdout(), IsTTY: term.IsTerminal}
 				return runConfigUpdateInteractive(cfgPath, name, keyStorage, p, cmd.OutOrStdout())
 			}
-			var pProvider, pAPIBase, pDefaultModel *string
+			var pProvider, pAPIBase *string
 			if fs.Changed("provider") {
 				pProvider = &provider
 			}
 			if fs.Changed("api-base") {
 				pAPIBase = &apiBase
 			}
-			if fs.Changed("default-model") {
-				pDefaultModel = &defaultModel
-			}
-			return runConfigUpdate(cfgPath, name, pProvider, pAPIBase, pDefaultModel, apiKey, fs.Changed("api-key"), keyStorage, cmd.OutOrStdout())
+			return runConfigUpdate(cfgPath, name, pProvider, pAPIBase, apiKey, fs.Changed("api-key"), keyStorage, cmd.OutOrStdout())
 		},
 		SilenceUsage: false,
 	}
-	c.Flags().StringVar(&name, "name", "", "要更新的 profile 名稱（必填）")
 	c.Flags().StringVar(&provider, "provider", "openai", "provider 類型")
 	c.Flags().StringVar(&apiBase, "api-base", "", "API base URL")
 	c.Flags().StringVar(&apiKey, "api-key", "", "API key（設為空字串清除金鑰）")
-	c.Flags().StringVar(&defaultModel, "default-model", "", "預設模型識別碼")
 	c.Flags().StringVar(&keyStorage, "key-storage", "keychain", "金鑰儲存位置（keychain|plaintext）")
 	addConfigFlag(c, &cfgPath)
-	_ = c.MarkFlagRequired("name")
 	return c
 }
 
@@ -167,32 +162,34 @@ func newConfigListCmd() *cobra.Command {
 }
 
 func newConfigDeleteCmd() *cobra.Command {
-	var name, cfgPath string
+	var cfgPath string
 	c := &cobra.Command{
-		Use:   "delete",
+		Use:   "delete <profile name>",
 		Short: "依名稱刪除 BYOK profile（同步清理 keychain）",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigDelete(cfgPath, name, cmd.OutOrStdout())
+			if len(args) == 0 {
+				return fmt.Errorf("必須提供 profile 名稱作為位置參數")
+			}
+			return runConfigDelete(cfgPath, args[0], cmd.OutOrStdout())
 		},
 	}
-	c.Flags().StringVar(&name, "name", "", "要刪除的 profile 名稱（必填）")
 	addConfigFlag(c, &cfgPath)
-	_ = c.MarkFlagRequired("name")
 	return c
 }
 
 func newConfigSetDefaultCmd() *cobra.Command {
-	var name, cfgPath string
+	var cfgPath string
 	c := &cobra.Command{
-		Use:   "set-default",
+		Use:   "set-default <profile name>",
 		Short: "設定預設 BYOK profile",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigSetDefault(cfgPath, name, cmd.OutOrStdout())
+			if len(args) == 0 {
+				return fmt.Errorf("必須提供 profile 名稱作為位置參數")
+			}
+			return runConfigSetDefault(cfgPath, args[0], cmd.OutOrStdout())
 		},
 	}
-	c.Flags().StringVar(&name, "name", "", "要設為預設的 profile 名稱（必填）")
 	addConfigFlag(c, &cfgPath)
-	_ = c.MarkFlagRequired("name")
 	return c
 }
 
@@ -226,7 +223,7 @@ func persistKey(p *config.Profile, apiKey, keyStorage string) error {
 	return nil
 }
 
-func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage string, w io.Writer) error {
+func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, keyStorage string, w io.Writer) error {
 	path, err := configPath(cfgPath)
 	if err != nil {
 		return fmt.Errorf("解析設定檔路徑: %w", err)
@@ -245,10 +242,9 @@ func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keySto
 		}
 	}
 	prof := config.Profile{
-		Name:         name,
-		Provider:     provider,
-		APIBase:      apiBase,
-		DefaultModel: defaultModel,
+		Name:     name,
+		Provider: provider,
+		APIBase:  apiBase,
 	}
 	if err := persistKey(&prof, apiKey, keyStorage); err != nil {
 		return err
@@ -267,14 +263,7 @@ func runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keySto
 	return nil
 }
 
-func runConfigAddInteractive(cfgPath, keyStorageDefault string, p *config.Prompter, w io.Writer) error {
-	name, err := p.PromptString("profile 名稱")
-	if err != nil {
-		return err
-	}
-	if name == "" {
-		return fmt.Errorf("profile 名稱不可為空")
-	}
+func runConfigAddInteractive(cfgPath, name, keyStorageDefault string, p *config.Prompter, w io.Writer) error {
 	provider, err := p.PromptDefault("provider", "openai")
 	if err != nil {
 		return err
@@ -286,13 +275,6 @@ func runConfigAddInteractive(cfgPath, keyStorageDefault string, p *config.Prompt
 	if apiBase == "" {
 		return fmt.Errorf("API base URL 不可為空")
 	}
-	defaultModel, err := p.PromptString("預設模型")
-	if err != nil {
-		return err
-	}
-	if defaultModel == "" {
-		return fmt.Errorf("預設模型不可為空")
-	}
 	apiKey, err := p.PromptSecret("API key（可留空）")
 	if err != nil {
 		return err
@@ -301,10 +283,10 @@ func runConfigAddInteractive(cfgPath, keyStorageDefault string, p *config.Prompt
 	if err != nil {
 		return err
 	}
-	return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, defaultModel, keyStorage, w)
+	return runConfigAdd(cfgPath, name, provider, apiBase, apiKey, keyStorage, w)
 }
 
-func runConfigUpdate(cfgPath, name string, provider, apiBase, defaultModel *string, apiKey string, apiKeyProvided bool, keyStorage string, w io.Writer) error {
+func runConfigUpdate(cfgPath, name string, provider, apiBase *string, apiKey string, apiKeyProvided bool, keyStorage string, w io.Writer) error {
 	path, err := configPath(cfgPath)
 	if err != nil {
 		return fmt.Errorf("解析設定檔路徑: %w", err)
@@ -327,7 +309,7 @@ func runConfigUpdate(cfgPath, name string, provider, apiBase, defaultModel *stri
 		return fmt.Errorf("找不到 profile %q", name)
 	}
 	prof := &cfg.Profiles[idx]
-	config.ApplyProfileUpdates(prof, provider, apiBase, defaultModel)
+	config.ApplyProfileUpdates(prof, provider, apiBase)
 	if apiKeyProvided {
 		if apiKey == "" {
 			_ = keys.Delete(prof.Name)
@@ -376,10 +358,6 @@ func runConfigUpdateInteractive(cfgPath, name, keyStorageDefault string, p *conf
 	if err != nil {
 		return err
 	}
-	defaultModel, err := p.PromptDefault("預設模型", prof.DefaultModel)
-	if err != nil {
-		return err
-	}
 	apiKey, err := p.PromptSecret("API key（留空保留原值）")
 	if err != nil {
 		return err
@@ -390,7 +368,6 @@ func runConfigUpdateInteractive(cfgPath, name, keyStorageDefault string, p *conf
 	}
 	prof.Provider = provider
 	prof.APIBase = apiBase
-	prof.DefaultModel = defaultModel
 	if apiKey != "" {
 		if err := persistKey(prof, apiKey, keyStorage); err != nil {
 			return err
@@ -420,17 +397,128 @@ func runConfigList(cfgPath string, w io.Writer) error {
 		fmt.Fprintf(w, "尚無任何 profile。請先執行 `byok config add`。\n")
 		return nil
 	}
-	fmt.Fprintf(w, "%-20s %-10s %-35s %-20s %-10s %s\n", "名稱", "Provider", "API Base", "預設模型", "來源", "API Key")
+	// 以「顯示寬度感知」動態計算各欄寬，避免 CJK 字元（中文佔 2 欄）與
+	// 超長內容導致固定欄寬錯位。每欄寬 = 標題與各列該欄顯示寬度的最大值。
+	headers := []string{"名稱", "Provider", "API Base", "模型", "來源", "API Key"}
+	rows := make([]profileRow, 0, len(cfg.Profiles))
 	for _, p := range cfg.Profiles {
 		marker := ""
 		if p.Name == cfg.DefaultProfile {
 			marker = " (預設)"
 		}
 		key, source, _ := config.Resolver.Resolve(p)
-		fmt.Fprintf(w, "%-20s %-10s %-35s %-20s %-10s %s%s\n",
-			p.Name, p.Provider, p.APIBase, p.DefaultModel, source.String(), maskAPIKey(key), marker)
+		rows = append(rows, profileRow{
+			name:     p.Name,
+			provider: p.Provider,
+			apiBase:  p.APIBase,
+			models:   formatModels(p.Models),
+			source:   source.String(),
+			key:      maskAPIKey(key),
+			marker:   marker,
+		})
+	}
+	// 各欄內容（最末欄 API Key 後接 marker，不參與對齊）。
+	cols := [][]string{
+		pickCol(rows, func(r profileRow) string { return r.name }),
+		pickCol(rows, func(r profileRow) string { return r.provider }),
+		pickCol(rows, func(r profileRow) string { return r.apiBase }),
+		pickCol(rows, func(r profileRow) string { return r.models }),
+		pickCol(rows, func(r profileRow) string { return r.source }),
+		pickCol(rows, func(r profileRow) string { return r.key }),
+	}
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = displayWidth(h)
+	}
+	for i, cells := range cols {
+		for _, c := range cells {
+			if dw := displayWidth(c); dw > widths[i] {
+				widths[i] = dw
+			}
+		}
+	}
+	// 欄間留 2 個空白；最末欄（API Key）不加尾隨空白，其後接 marker。
+	writeRow := func(cells []string) {
+		var b strings.Builder
+		for i, c := range cells {
+			b.WriteString(padWidth(c, widths[i]))
+			if i < len(cells)-1 {
+				b.WriteString("  ")
+			}
+		}
+		b.WriteString("\n")
+		fmt.Fprint(w, b.String())
+	}
+	writeRow(headers)
+	for _, r := range rows {
+		writeRow([]string{r.name, r.provider, r.apiBase, r.models, r.source, r.key + r.marker})
 	}
 	return nil
+}
+
+// profileRow 為 runConfigList 表格的單列，供動態欄寬計算與渲染使用。
+type profileRow struct {
+	name, provider, apiBase, models, source, key string
+	marker                                        string
+}
+
+// pickCol 自所有列萃取指定欄位的字串，供動態欄寬計算使用。
+func pickCol(rows []profileRow, pick func(r profileRow) string) []string {
+	out := make([]string, len(rows))
+	for i, r := range rows {
+		out[i] = pick(r)
+	}
+	return out
+}
+
+// formatModels 將候選模型清單渲染為逗號分隔字串（如 "gpt-4o, gpt-4o-mini"）；
+// 空清單回傳空字串，供 `byok config list` 顯示。
+func formatModels(models []string) string {
+	return strings.Join(models, ", ")
+}
+
+// displayWidth 回傳 s 在等寬終端機上的顯示欄數。CJK常見全形字元算 2 欄，
+// 其餘算 1 欄；此為近似（涵蓋本表格會出現的中文標題與「(預設)」標記），
+// 非完整 East Asian Width 實作，足以讓 `byok config list` 各欄對齊。
+func displayWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		w += runeWidth(r)
+	}
+	return w
+}
+
+// runeWidth 回傳單一字元的顯示欄數（CJK/全形=2，其餘=1）。
+func runeWidth(r rune) int {
+	switch {
+	case r == 0:
+		return 0
+	// CJK 統一漢字（含延伸A區常用部分）、相容漢字。
+	case r >= 0x1100 && r <= 0x115F, // Hangul Jamo
+		r >= 0x2E80 && r <= 0x303E, // CJK 部首、符號
+		r >= 0x3041 && r <= 0x33FF, // 平假名/片假名/CJK 符號
+		r >= 0x3400 && r <= 0x4DBF, // CJK 擴展A
+		r >= 0x4E00 && r <= 0x9FFF, // CJK 統一漢字
+		r >= 0xA000 && r <= 0xA4CF, // 彝文
+		r >= 0xAC00 && r <= 0xD7A3, // Hangul 音節
+		r >= 0xF900 && r <= 0xFAFF, // CJK 相容漢字
+		r >= 0xFE30 && r <= 0xFE4F, // CJK 相容形式
+		r >= 0xFF00 && r <= 0xFF60, // 全形 ASCII/標點
+		r >= 0xFFE0 && r <= 0xFFE6: // 全形符號
+		return 2
+	default:
+		return 1
+	}
+}
+
+// padWidth 將 s 右側以空白補齊至顯示寬度 width；以顯示寬度（非 rune 數）
+// 計算缺額，使 CJK 欄位也能正確對齊。
+func padWidth(s string, width int) string {
+	gap := width - displayWidth(s)
+	if gap <= 0 {
+		return s
+	}
+	return s + strings.Repeat(" ", gap)
 }
 
 func runConfigDelete(cfgPath, name string, w io.Writer) error {

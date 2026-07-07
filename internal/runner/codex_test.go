@@ -11,13 +11,13 @@ import (
 func TestBuildCodexArgs_EnvCarriesAPIKey(t *testing.T) {
 	t.Setenv("BYOK_TEST_VAR", "hello")
 	profile := config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-codex-test",
-		DefaultModel: "gpt-4o",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-codex-test",
+		Models:   []string{"gpt-4o"},
 	}
-	env, _ := BuildCodexArgs(&profile, "")
+	env, _ := BuildCodexArgs(&profile, "gpt-4o")
 	if got := getEnv(t, env, "BYOK_CODEX_API_KEY"); got != "sk-codex-test" {
 		t.Errorf("BYOK_CODEX_API_KEY = %q, want %q", got, "sk-codex-test")
 	}
@@ -29,13 +29,13 @@ func TestBuildCodexArgs_EnvCarriesAPIKey(t *testing.T) {
 func TestBuildCodexArgs_OverwritesExistingAPIKey(t *testing.T) {
 	t.Setenv("BYOK_CODEX_API_KEY", "old-key")
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "new-key",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "new-key",
+		Models:   []string{"gpt-4o"},
 	}
-	env, _ := BuildCodexArgs(&profile, "")
+	env, _ := BuildCodexArgs(&profile, "gpt-4o")
 	if got := getEnv(t, env, "BYOK_CODEX_API_KEY"); got != "new-key" {
 		t.Errorf("BYOK_CODEX_API_KEY = %q, want %q", got, "new-key")
 	}
@@ -46,13 +46,13 @@ func TestBuildCodexArgs_OverwritesExistingAPIKey(t *testing.T) {
 
 func TestBuildCodexArgs_ConfigArgsShape(t *testing.T) {
 	profile := config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-xxxx",
-		DefaultModel: "gpt-4o",
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-xxxx",
+		Models:   []string{"gpt-4o"},
 	}
-	_, configArgs := BuildCodexArgs(&profile, "")
+	_, configArgs := BuildCodexArgs(&profile, "gpt-4o")
 
 	// configArgs 為成對的 ["--config", "<key>=<value>", ...]
 	want := []string{
@@ -74,11 +74,11 @@ func TestBuildCodexArgs_ConfigArgsShape(t *testing.T) {
 
 func TestBuildCodexArgs_ModelOverride(t *testing.T) {
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "sk-xxxx",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-xxxx",
+		Models:   []string{"gpt-4o"},
 	}
 	_, configArgs := BuildCodexArgs(&profile, "gemma4")
 	wantModel := `model="gemma4"`
@@ -92,13 +92,13 @@ func TestBuildCodexArgs_ModelOverride(t *testing.T) {
 
 func TestBuildCodexArgs_ConfigArgsAreFlagPairs(t *testing.T) {
 	profile := config.Profile{
-		Name:         "p",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey:       "k",
-		DefaultModel: "gpt-4o",
+		Name:     "p",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "k",
+		Models:   []string{"gpt-4o"},
 	}
-	_, configArgs := BuildCodexArgs(&profile, "")
+	_, configArgs := BuildCodexArgs(&profile, "gpt-4o")
 	for i := 0; i < len(configArgs); i += 2 {
 		if configArgs[i] != "--config" {
 			t.Errorf("configArgs[%d] = %q, want \"--config\" (must be flag pairs)", i, configArgs[i])

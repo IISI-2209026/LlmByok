@@ -23,10 +23,11 @@ var claudeByokKeys = map[string]struct{}{
 //
 //	ANTHROPIC_BASE_URL = profile.APIBase
 //	ANTHROPIC_API_KEY  = profile.APIKey
-//	ANTHROPIC_MODEL    = modelOverride 非空時使用之，否則用 profile.DefaultModel
+//	ANTHROPIC_MODEL    = model（呼叫端已解析的單一模型字串）
 //
-// 其餘現有環境變數保持不變。父程序環境永不被修改。
-func BuildClaudeEnv(profile *config.Profile, modelOverride string) []string {
+// 其餘現有環境變數保持不變。父程序環境永不被修改。模型解析（候選清單
+// 選擇）由呼叫端（cmd/launch 層）完成。
+func BuildClaudeEnv(profile *config.Profile, model string) []string {
 	env := make([]string, 0, len(os.Environ())+3)
 
 	for _, entry := range os.Environ() {
@@ -38,11 +39,6 @@ func BuildClaudeEnv(profile *config.Profile, modelOverride string) []string {
 			continue
 		}
 		env = append(env, entry)
-	}
-
-	model := modelOverride
-	if model == "" {
-		model = profile.DefaultModel
 	}
 
 	env = append(env,
@@ -58,9 +54,9 @@ func BuildClaudeEnv(profile *config.Profile, modelOverride string) []string {
 // claude 可執行檔為子程序。extraArgs 會原樣附加為子程序的命令列
 // 參數。stdin、stdout 與 stderr 透明連接。父程序環境永不被修改 —
 // 僅子程序接收覆寫後的變數。
-func LaunchClaude(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+func LaunchClaude(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	cmd := exec.Command(exePath, extraArgs...)
-	cmd.Env = BuildClaudeEnv(profile, modelOverride)
+	cmd.Env = BuildClaudeEnv(profile, model)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

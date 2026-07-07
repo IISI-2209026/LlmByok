@@ -26,14 +26,15 @@ const codexProviderID = "byok"
 //
 // configArgs 為成對的 ["--config", "<key>=<value>", ...] 切片，覆寫：
 //
-//	model                                  = modelOverride 或 profile.DefaultModel
+//	model                                  = model（呼叫端已解析的單一模型字串）
 //	model_provider                         = "byok"
 //	model_providers.byok.name              = "BYOK"
 //	model_providers.byok.base_url          = profile.APIBase
 //	model_providers.byok.env_key           = "BYOK_CODEX_API_KEY"
 //
 // TOML 字串值以雙引號包裹（不經過 shell，故不需外層 shell quoting）。
-func BuildCodexArgs(profile *config.Profile, modelOverride string) (env []string, configArgs []string) {
+// 模型解析（候選清單選擇）由呼叫端（cmd/launch 層）完成。
+func BuildCodexArgs(profile *config.Profile, model string) (env []string, configArgs []string) {
 	env = make([]string, 0, len(os.Environ())+1)
 	for _, entry := range os.Environ() {
 		key := entry
@@ -46,11 +47,6 @@ func BuildCodexArgs(profile *config.Profile, modelOverride string) (env []string
 		env = append(env, entry)
 	}
 	env = append(env, codexAPIKeyEnv+"="+profile.APIKey)
-
-	model := modelOverride
-	if model == "" {
-		model = profile.DefaultModel
-	}
 
 	configArgs = []string{
 		"--config", `model="` + model + `"`,
@@ -68,8 +64,8 @@ func BuildCodexArgs(profile *config.Profile, modelOverride string) (env []string
 // 與 stderr 透明連接。父程序環境永不被修改 — 僅子程序接收覆寫後的變數。
 //
 // 命令列順序：codex [<--config ...>] [<extraArgs...>]。
-func LaunchCodex(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	env, configArgs := BuildCodexArgs(profile, modelOverride)
+func LaunchCodex(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	env, configArgs := BuildCodexArgs(profile, model)
 	args := append([]string(nil), configArgs...)
 	args = append(args, extraArgs...)
 
@@ -87,8 +83,8 @@ func LaunchCodex(profile *config.Profile, modelOverride, exePath string, extraAr
 // 連接。父程序環境永不被修改 — 僅子程序接收覆寫後的變數。
 //
 // 命令列順序：codex app [--config ...] [<extraArgs...>]。
-func LaunchCodexApp(profile *config.Profile, modelOverride, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	env, configArgs := BuildCodexArgs(profile, modelOverride)
+func LaunchCodexApp(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	env, configArgs := BuildCodexArgs(profile, model)
 	args := []string{"app"}
 	args = append(args, configArgs...)
 	args = append(args, extraArgs...)
