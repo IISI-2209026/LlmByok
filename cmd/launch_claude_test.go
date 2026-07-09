@@ -138,8 +138,8 @@ func TestRunLaunchClaude_EnvInjected(t *testing.T) {
 	if got := envLookupOSIn(childEnv, "ANTHROPIC_API_KEY"); got != "sk-claude-test" {
 		t.Errorf("child ANTHROPIC_API_KEY = %q, want sk-claude-test", got)
 	}
-	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5" {
-		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-sonnet-4-5", got)
+	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5[1m]" {
+		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-sonnet-4-5[1m]", got)
 	}
 }
 
@@ -164,8 +164,8 @@ func TestRunLaunchClaude_ModelOverride(t *testing.T) {
 
 	envData, _ := os.ReadFile(outFile)
 	childEnv := strings.Split(string(envData), "\n")
-	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-opus-4-1" {
-		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-opus-4-1", got)
+	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-opus-4-1[1m]" {
+		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-opus-4-1[1m]", got)
 	}
 }
 

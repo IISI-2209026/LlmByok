@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  git commit 訊息使用繁體中文
+  這是一個 Go 的專案，在做 Coding Agent 去做 Bring Your Owner Key 。
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
