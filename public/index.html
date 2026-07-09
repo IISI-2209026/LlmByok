@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="byok — Bring Your Own Key for Copilot / Codex / Claude / Pi. One command, zero shell pollution.">
+  <meta name="author" content="IISI-2209026">
+  <meta property="og:title" content="byok — Bring Your Own Key">
+  <meta property="og:description" content="一行指令，把自己的 API Key 暫時注入 Copilot / Codex / Claude / Pi，Shell 環境完全不受污染。">
+  <meta property="og:type" content="website">
+  <title>byok — Bring Your Own Key</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ======================== Navigation ======================== -->
+  <nav class="nav-bar">
+    <div class="container nav-content">
+      <a href="#hero" class="nav-logo"><span class="accent">byok</span></a>
+      <div class="nav-links">
+        <a href="#problem">特色</a>
+        <a href="#how-it-works">如何運作</a>
+        <a href="#features">核心功能</a>
+        <a href="#quickstart">上手</a>
+        <a href="#install">安裝</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ======================== Hero ======================== -->
+  <section class="hero" id="hero">
+    <div class="hero-content">
+      <h1 class="hero-title"><span class="accent">byok</span> — Bring Your Own Key</h1>
+      <p class="subtitle">
+        一行指令，把自己的 API Key 暫時注入 Copilot / Codex / Claude / Pi。<br>
+        Shell 環境完全不受污染。
+      </p>
+
+      <div class="terminal">
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">bash</span>
+        </div>
+        <div class="terminal-body">
+          <span class="terminal-prompt">$ </span><span class="terminal-text" id="typing-text"></span><span class="terminal-cursor"></span>
+        </div>
+      </div>
+
+      <a href="#quickstart" class="btn btn-primary">三分鐘上手 →</a>
+      <a href="#install" class="btn btn-secondary">安裝方式</a>
+      <a href="https://github.com/IISI-2209026/LlmByok" target="_blank" rel="noopener" class="btn btn-secondary">GitHub</a>
+    </div>
+  </section>
+
+  <!-- ======================== Problem ======================== -->
+  <section id="problem">
+    <div class="container">
+      <div class="section-title">
+        <h2>使用自己的 API 金鑰，變得很容易</h2>
+        <p>不再手動 export，不再污染 Shell 環境</p>
+      </div>
+
+      <div class="compare-grid">
+        <div class="glass-card compare-card before">
+          <span class="compare-label">Before — 手動設定</span>
+          <h3>繁瑣且容易出錯</h3>
+          <div class="compare-code">export OPENAI_API_KEY="sk-..."
+export OPENAI_BASE_URL="https://..."
+# 每次都要重新設定
+# 容易忘記清除
+# 環境變數殘留污染</div>
+        </div>
+
+        <div class="glass-card compare-card after">
+          <span class="compare-label">After — 一行指令</span>
+          <h3>簡潔且安全</h3>
+          <div class="compare-code">byok launch copilot
+
+# 自動從 keychain 讀取金鑰
+# 僅注入子程序
+# 父程序零污染</div>
+        </div>
+      </div>
+
+      <div class="compare-vs"><span>VS</span></div>
+    </div>
+  </section>
+
+  <!-- ======================== How It Works ======================== -->
+  <section id="how-it-works">
+    <div class="container">
+      <div class="section-title">
+        <h2>如何運作</h2>
+        <p>三步驟完成 BYOK 注入</p>
+      </div>
+
+      <div class="flow-diagram">
+        <div class="glass-card flow-step">
+          <div class="flow-icon">🔐</div>
+          <div class="flow-text">Profile 管理金鑰<br>（Keychain 加密儲存）</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="glass-card flow-step">
+          <div class="flow-icon">⚡</div>
+          <div class="flow-text">byok launch<br>啟動子程序</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="glass-card flow-step">
+          <div class="flow-icon">🚀</div>
+          <div class="flow-text">Copilot / Codex /<br>Claude / Pi 啟動</div>
+        </div>
+      </div>
+
+      <p style="text-align:center; margin-top:var(--space-lg); max-width:600px; margin-left:auto; margin-right:auto;">
+        金鑰透過環境變數僅注入到子程序，父程序（Shell）與系統環境永不被改變。
+        不修改任何 Copilot / Codex / Claude / Pi 設定檔。
+      </p>
+    </div>
+  </section>
+
+  <!-- ======================== Features ======================== -->
+  <section id="features">
+    <div class="container">
+      <div class="section-title">
+        <h2>核心功能</h2>
+      </div>
+
+      <div class="feature-grid">
+        <div class="glass-card feature-card">
+          <div class="icon">🔑</div>
+          <h3>BYOK Profile</h3>
+          <p>以 YAML 管理 API 端點、金鑰與模型清單，金鑰以 OS keychain 加密儲存。</p>
+        </div>
+
+        <div class="glass-card feature-card">
+          <div class="icon">🛡️</div>
+          <h3>零環境污染</h3>
+          <p>環境變數僅注入子程序，Shell 與系統設定檔永不被修改。</p>
+        </div>
+
+        <div class="glass-card feature-card">
+          <div class="icon">🧩</div>
+          <h3>多工具支援</h3>
+          <p>Copilot、Codex、Codex App、Claude、Pi，一個 byok 全部搞定。</p>
+        </div>
+
+        <div class="glass-card feature-card">
+          <div class="icon">📦</div>
+          <h3>自我更新</h3>
+          <p>byok update 自動檢查 GitHub Releases 並原子替換執行檔。</p>
+        </div>
+
+        <div class="glass-card feature-card">
+          <div class="icon">🖥️</div>
+          <h3>互動模型選單</h3>
+          <p>多模型 Profile 在終端機顯示上下鍵互動選單，直覺切換。</p>
+        </div>
+
+        <div class="glass-card feature-card">
+          <div class="icon">🔒</div>
+          <h3>Keychain 加密</h3>
+          <p>API 金鑰以 OS keychain（macOS / Windows / Linux）加密儲存。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== Quick Start ======================== -->
+  <section id="quickstart">
+    <div class="container">
+      <div class="section-title">
+        <h2>三分鐘上手</h2>
+        <p>兩步驟，馬上開始使用自己的 API Key</p>
+      </div>
+
+      <!-- Step 1: Config -->
+      <div class="quickstart-step">
+        <div class="step-badge">Step 1</div>
+        <h3 class="step-title">設定 Profile</h3>
+        <p class="step-desc">建立一個 BYOK profile，指定 provider、API 端點與金鑰。金鑰預設存入 OS keychain 加密儲存。</p>
+        <div class="code-block">
+          <code>byok config add my-profile</code>
+          <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Step 2: Launch -->
+      <div class="quickstart-step">
+        <div class="step-badge">Step 2</div>
+        <h3 class="step-title">啟動工具</h3>
+        <p class="step-desc">選擇你要使用的 CLI 工具，一行指令啟動。環境變數僅注入子程序，父程序零污染。</p>
+
+        <div class="launch-grid">
+          <div class="glass-card launch-card">
+            <img src="icons/copilot.svg" alt="Copilot CLI" class="launch-icon">
+            <h4>Copilot CLI</h4>
+            <div class="code-block">
+              <code>byok launch copilot</code>
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="glass-card launch-card">
+            <img src="icons/openai.svg" alt="Codex CLI" class="launch-icon">
+            <h4>Codex CLI</h4>
+            <div class="code-block">
+              <code>byok launch codex</code>
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="glass-card launch-card">
+            <img src="icons/openai.svg" alt="Codex App" class="launch-icon">
+            <h4>Codex App</h4>
+            <div class="code-block">
+              <code>byok launch codex-app</code>
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="glass-card launch-card">
+            <img src="icons/anthropic.svg" alt="Claude" class="launch-icon">
+            <h4>Claude</h4>
+            <div class="code-block">
+              <code>byok launch claude</code>
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+            </div>
+          </div>
+
+          <div class="glass-card launch-card">
+            <img src="icons/pi.svg" alt="Pi" class="launch-icon">
+            <h4>Pi</h4>
+            <div class="code-block">
+              <code>byok launch pi</code>
+              <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== Install ======================== -->
+  <section id="install">
+    <div class="container">
+      <div class="section-title">
+        <h2>安裝方式</h2>
+        <p>無須依賴 — 下載即用，單一執行檔</p>
+      </div>
+
+      <div class="no-deps-badge">
+        ✅ 無需 Node.js、無需 Python、無需任何執行階段 — 下載單一執行檔即可使用
+      </div>
+
+      <!-- OS Tabs -->
+      <div class="os-tabs">
+        <div class="os-tab-buttons">
+          <button class="os-tab-btn active" data-os="linux" type="button">Linux</button>
+          <button class="os-tab-btn" data-os="macos" type="button">macOS</button>
+          <button class="os-tab-btn" data-os="windows" type="button">Windows</button>
+        </div>
+
+        <div class="os-tab-panel active" data-os="linux">
+          <div class="code-block">
+            <code>curl -L https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-linux-amd64 -o /usr/local/bin/byok &amp;&amp; chmod +x /usr/local/bin/byok</code>
+            <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="os-tab-panel" data-os="macos">
+          <div class="code-block">
+            <code>curl -L https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-darwin-amd64 -o /usr/local/bin/byok &amp;&amp; chmod +x /usr/local/bin/byok</code>
+            <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="os-tab-panel" data-os="windows">
+          <div class="code-block">
+            <code>Invoke-WebRequest -Uri "https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-windows-amd64.exe" -OutFile "$env:LOCALAPPDATA\byok.exe"</code>
+            <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top:var(--space-lg);">
+        <a href="https://github.com/IISI-2209026/LlmByok/releases" target="_blank" rel="noopener" class="btn btn-primary">查看所有 Releases →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== Footer ======================== -->
+  <footer>
+    <div class="container">
+      <p>
+        <a href="https://github.com/IISI-2209026/LlmByok" target="_blank" rel="noopener">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/IISI-2209026/LlmByok/releases" target="_blank" rel="noopener">Releases</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/IISI-2209026/LlmByok/issues" target="_blank" rel="noopener">Issues</a>
+      </p>
+      <p style="margin-top:var(--space-xs);">
+        byok is open source · MIT License · © 2025 IISI-2209026
+      </p>
+    </div>
+  </footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>

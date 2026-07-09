@@ -28,6 +28,7 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 <!-- SPECTRA:END -->
 
 
+
 # 專案架構
 
 `byok` 是一支以 Go 1.26+ 與 [cobra](https://github.com/spf13/cobra) 建構的命令列工具，模組路徑為 `github.com/IISI-2209026/LlmByok`，入口為 `cmd/byok/main.go`。它以 BYOK（Bring Your Own Key）profile 暫時啟動 Copilot 或 Codex CLI，不修改父程序環境或使用者設定檔。

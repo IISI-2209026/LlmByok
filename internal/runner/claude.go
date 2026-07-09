@@ -23,7 +23,7 @@ var claudeByokKeys = map[string]struct{}{
 //
 //	ANTHROPIC_BASE_URL = profile.APIBase
 //	ANTHROPIC_API_KEY  = profile.APIKey
-//	ANTHROPIC_MODEL    = model（呼叫端已解析的單一模型字串）
+//	ANTHROPIC_MODEL    = model + "[1m]"（呼叫端已解析的單一模型字串，附加 [1m] 後綴）
 //
 // 其餘現有環境變數保持不變。父程序環境永不被修改。模型解析（候選清單
 // 選擇）由呼叫端（cmd/launch 層）完成。
@@ -39,6 +39,12 @@ func BuildClaudeEnv(profile *config.Profile, model string) []string {
 			continue
 		}
 		env = append(env, entry)
+	}
+
+	// Claude CLI 要求透過第三方端點連線時，模型名稱必須附加 [1m]
+	// 以啟用 1M token context window。
+	if !strings.HasSuffix(model, "[1m]") {
+		model += "[1m]"
 	}
 
 	env = append(env,

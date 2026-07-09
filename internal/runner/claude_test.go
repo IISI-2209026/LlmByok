@@ -28,8 +28,8 @@ func TestBuildClaudeEnv_OverridesByokVars(t *testing.T) {
 	if got := getEnv(t, env, "ANTHROPIC_API_KEY"); got != "sk-claude-test" {
 		t.Errorf("ANTHROPIC_API_KEY = %q, want %q", got, "sk-claude-test")
 	}
-	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5" {
-		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "claude-sonnet-4-5")
+	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5[1m]" {
+		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "claude-sonnet-4-5[1m]")
 	}
 	if !contains(env, "BYOK_TEST_VAR=hello") {
 		t.Errorf("env missing preserved var BYOK_TEST_VAR=hello; got %v", env)
@@ -47,8 +47,8 @@ func TestBuildClaudeEnv_ModelOverride(t *testing.T) {
 	}
 	env := BuildClaudeEnv(&profile, "claude-opus-4-1")
 
-	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "claude-opus-4-1" {
-		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "claude-opus-4-1")
+	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "claude-opus-4-1[1m]" {
+		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "claude-opus-4-1[1m]")
 	}
 	if contains(env, "ANTHROPIC_MODEL=claude-sonnet-4-5") {
 		t.Errorf("env should not contain default model, got %v", env)
@@ -68,11 +68,14 @@ func TestBuildClaudeEnv_OverwritesExistingByokVar(t *testing.T) {
 	}
 	env := BuildClaudeEnv(&profile, "new-model")
 
-	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "new-model" {
-		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "new-model")
+	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "new-model[1m]" {
+		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "new-model[1m]")
 	}
 	if contains(env, "ANTHROPIC_MODEL=old-model") {
 		t.Errorf("env should not contain old ANTHROPIC_MODEL, got %v", env)
+	}
+	if contains(env, "ANTHROPIC_MODEL=new-model") {
+		t.Errorf("env should not contain unsuffixed ANTHROPIC_MODEL, got %v", env)
 	}
 }
 
@@ -123,7 +126,7 @@ func TestLaunchClaude_ByokVarsInjected(t *testing.T) {
 	want := map[string]string{
 		"ANTHROPIC_BASE_URL": "https://api.openai.com/v1",
 		"ANTHROPIC_API_KEY":  "sk-claude-integration",
-		"ANTHROPIC_MODEL":    "claude-opus-4-1",
+		"ANTHROPIC_MODEL":    "claude-opus-4-1[1m]",
 	}
 	for key, expected := range want {
 		got := envLookup(childEnv, key)
