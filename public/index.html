@@ -247,11 +247,11 @@ export OPENAI_BASE_URL="https://..."
     <div class="container">
       <div class="section-title">
         <h2>安裝方式</h2>
-        <p>無須依賴 — 下載即用，單一執行檔</p>
+        <p>無須依賴 — 解壓即可使用，單一執行檔</p>
       </div>
 
       <div class="no-deps-badge">
-        ✅ 無需 Node.js、無需 Python、無需任何執行階段 — 下載單一執行檔即可使用
+        ✅ 無需 Node.js、無需 Python、無需任何執行階段 — 解壓單一執行檔即可使用
       </div>
 
       <!-- OS Tabs -->
@@ -264,21 +264,27 @@ export OPENAI_BASE_URL="https://..."
 
         <div class="os-tab-panel active" data-os="linux">
           <div class="code-block">
-            <code>curl -L https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-linux-amd64 -o /usr/local/bin/byok &amp;&amp; chmod +x /usr/local/bin/byok</code>
+            <code data-install-command="linux">curl -L "https://github.com/IISI-2209026/LlmByok/releases/download/v0.2.4/byok-0.2.4-linux-amd64.tar.gz" -o byok.tar.gz
+tar -xzf byok.tar.gz
+sudo install -m 755 byok /usr/local/bin/byok</code>
             <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
           </div>
         </div>
 
         <div class="os-tab-panel" data-os="macos">
           <div class="code-block">
-            <code>curl -L https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-darwin-amd64 -o /usr/local/bin/byok &amp;&amp; chmod +x /usr/local/bin/byok</code>
+            <code data-install-command="macos">curl -L "https://github.com/IISI-2209026/LlmByok/releases/download/v0.2.4/byok-0.2.4-darwin-$(uname -m | sed 's/x86_64/amd64/').tar.gz" -o byok.tar.gz
+tar -xzf byok.tar.gz
+sudo install -m 755 byok /usr/local/bin/byok</code>
             <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
           </div>
         </div>
 
         <div class="os-tab-panel" data-os="windows">
           <div class="code-block">
-            <code>Invoke-WebRequest -Uri "https://github.com/IISI-2209026/LlmByok/releases/latest/download/byok-latest-windows-amd64.exe" -OutFile "$env:LOCALAPPDATA\byok.exe"</code>
+            <code data-install-command="windows">Invoke-WebRequest -Uri "https://github.com/IISI-2209026/LlmByok/releases/download/v0.2.4/byok-0.2.4-windows-amd64.zip" -OutFile "$env:TEMP\byok.zip"
+Expand-Archive -Force "$env:TEMP\byok.zip" -DestinationPath "$env:TEMP\byok"
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\byok" | Out-Null; Copy-Item "$env:TEMP\byok\byok.exe" "$env:LOCALAPPDATA\byok\byok.exe" -Force</code>
             <button class="copy-btn" type="button"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
           </div>
         </div>
