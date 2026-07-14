@@ -13,6 +13,7 @@ byok currently resolves a profile and selected primary model before a target run
 - 讓 `--dry-run` 僅輸出平台 shell 可執行的等效命令，不啟動 target、不檢查 target PATH，且不讀取 API key。
 - 在 dry-run 輸出以 `***` placeholder 取代 API key，並以目標 shell 正確引用 placeholder、profile 值與所有參數。
 - 在 README.md 與 AGENTS.md 說明三個旗標及其 target-specific mapping。
+- 當 `byok launch` 缺少 target 時，顯示該子命令的 help，讓使用者在不離開指令的情況下查閱 targets、flags 與 examples。
 
 **非目標：**
 
@@ -21,6 +22,7 @@ byok currently resolves a profile and selected primary model before a target run
 - 不和遠端 provider 協商模型支援能力、不驗證 sub-model 識別字，且不靜默降低使用者指定的 effort。
 - 不在 dry-run 讀取 keychain、設定檔明碼 API key 或產生可直接存取秘密的命令。
 - 不為不支援特定設定的已安裝 target CLI 版本建立相容性 fallback，也不提供非 Windows/POSIX shell 的第三種輸出格式。
+- 不將完整 help 套用至不支援 target、profile、設定檔、金鑰或 target executable 等其他錯誤路徑。
 
 ## Decisions
 
@@ -44,6 +46,10 @@ dry-run renderer 在 Windows 產生可貼到 PowerShell 的命令，在其他支
 
 各 runner 與 renderer 分別接收已解析的 model、effort、sub-model、extraArgs 與 profile connection data。test double 與 renderer tests 必須斷言子程序參數順序、環境 entry、shell quoting、key masking 及 pi cleanup 片段。這避免將旗標視為非結構化 passthrough input，並避免使用者透過 `--` 的參數覆寫 byok 管理的設定。
 
+### Show launch help when target omitted
+
+`newLaunchCmd` 保持自行處理位置參數，因為目前需要區分 target 與 `--` 後的 passthrough arguments。當 `args` 為空時，command SHALL 先透過 Cobra 的 help 輸出路徑寫出與 `byok launch --help` 相同的內容，再將既有的「必須指定目標工具」錯誤寫到 stderr 並回傳既有非零 sentinel error。此做法只改變遺漏 target 的引導，不讓設定、驗證或 runner 失敗時輸出冗長 help。
+
 ## Implementation Contract
 
 **行為：** `byok launch claude --sub-model claude-haiku-4-5` 啟動 Claude 時，僅在子程序帶入 `CLAUDE_CODE_SUBAGENT_MODEL=claude-haiku-4-5`。相同 `--sub-model` 指定給 Copilot、Codex、Codex App 或 pi 時，會啟動該 target，但不會帶入 sub-model 參數或環境設定，也不會報錯。`byok launch codex --model gpt-5 --effort high --dry-run` 只輸出包含 Codex BYOK config override、`model_reasoning_effort` 和被遮罩 key 的命令，不會執行 Codex。Windows 輸出 PowerShell；其他平台輸出 POSIX shell。
@@ -52,9 +58,11 @@ dry-run renderer 在 Windows 產生可貼到 PowerShell 的命令，在其他支
 
 **失敗模式：** 非空 effort 若不在所選 target 的支援值域內，印出包含 target、請求值與有效值的錯誤，以 exit code 1 結束，且不得啟動 target 或輸出命令。非空 sub-model 不得造成非 Claude target 失敗，也不得為該 target 產生 override。dry-run 仍須驗證 config、profile、provider 與模型解析，但不得解析 API key 或檢查 target executable。未指定任一旗標時，不產生驗證錯誤或 override。
 
-**驗收條件：** command 與 runner tests 覆蓋有效 effort 注入、有效 Claude sub-model 注入、四個非 Claude target 的 sub-model no-op、精確參數順序、旗標省略與無效 effort 在未執行時遭拒絕。dry-run tests 覆蓋 Windows PowerShell、POSIX shell、五個 target、API key `***` masking、shell quoting、pi 暫存檔與 cleanup、無 key resolver 呼叫及未安裝 target 時仍可輸出。`go test ./... -race` 通過。README.md 與 AGENTS.md 說明三個公開旗標及 mappings。
+`byok launch` 未帶位置參數時，stdout SHALL 包含 launch command 的 Usage、Targets、Flags 與 Examples，stderr SHALL 保留缺少 target 的錯誤，並以 exit code 1 結束；不得讀取設定檔、解析 API key、檢查 target PATH 或啟動子程序。帶有不支援 target 或已指定 target 的後續錯誤 SHALL 維持既有錯誤輸出，不額外顯示 help。
 
-**範圍邊界：** 本變更修改 launch parsing、runner injection、命令渲染、tests、specifications 與 documentation；不修改 profile YAML schema、不寫入 target configuration files、不驗證 sub-model identifier，也不支援 fallback 或 downgrade。
+**驗收條件：** command 與 runner tests 覆蓋有效 effort 注入、有效 Claude sub-model 注入、四個非 Claude target 的 sub-model no-op、精確參數順序、旗標省略與無效 effort 在未執行時遭拒絕。dry-run tests 覆蓋 Windows PowerShell、POSIX shell、五個 target、API key `***` masking、shell quoting、pi 暫存檔與 cleanup、無 key resolver 呼叫及未安裝 target 時仍可輸出。command tests 覆蓋 `byok launch` 的 help、錯誤與 exit code，以及不支援 target 時不顯示 help。此新增 help 行為不引入 goroutine 或共享可變狀態，驗證使用 `go test ./...`、`go vet ./...` 與 `go build ./cmd/byok`，不要求 `-race`。README.md 與 AGENTS.md 說明三個公開旗標及 mappings，AGENTS.md 同步記錄缺少 target 的 help 行為。
+
+**範圍邊界：** 本變更修改 launch parsing、runner injection、命令渲染、tests、specifications 與 documentation；不修改 profile YAML schema、不寫入 target configuration files、不驗證 sub-model identifier，也不支援 fallback 或 downgrade。缺少 target 時的 help 行為限於 `byok launch`，不改變 root command 或其他子命令的 help/error policy。
 
 ## Risks / Trade-offs
 

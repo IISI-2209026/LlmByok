@@ -11,6 +11,7 @@
 - 為 `byok launch <target>` 新增 `--dry-run` 旗標；解析 profile、模型、effort、sub-model、yolo 與 passthrough 後，只輸出可複製執行的等效 target 命令，不啟動 target。
 - 依執行 byok 的平台輸出 PowerShell 或 POSIX shell 語法；輸出 API Key 時固定使用已正確引用的 `***` placeholder，不讀取 keychain 或設定檔明碼金鑰。pi 的輸出包含建立暫存 `models.json`、執行 pi 與清理暫存目錄的完整命令片段。
 - 維持正常 launch 的 BYOK 設定只在子程序或 pi 暫存目錄生效，不修改使用者設定檔與父程序環境。
+- 當使用者執行 `byok launch` 而未提供 target 時，先輸出與 `byok launch --help` 相同的 launch 說明，再印出缺少 target 的錯誤並以 exit code 1 結束；其他 launch 執行期錯誤維持既有精簡錯誤輸出。
 - 更新 README.md、AGENTS.md 與相關 launch 規格，說明旗標、目標差異、有效值、dry-run 安全限制與範例。
 
 ## Capabilities
@@ -23,6 +24,7 @@
 ### Modified Capabilities
 
 - `byok-launch`: 將共用 `byok launch <target>` 介面擴充為接受並分派 `--effort`、`--sub-model` 與 `--dry-run`。
+- `byok-launch`: 未帶 target 的呼叫會顯示 launch help，協助使用者選擇受支援 target。
 - `byok-codex-launch`: Codex 與 Codex App 啟動時可用臨時 config override 指定 reasoning effort。
 - `byok-claude-launch`: Claude 啟動時可用臨時環境變數指定 effort 與 subagent model。
 - `byok-pi-launch`: pi 啟動時可用臨時 `--thinking` 參數指定思考程度。
@@ -42,6 +44,7 @@
   - Modified: internal/runner/pi.go
   - New: cmd/launch_dry_run.go
   - Modified: cmd/launch_test.go
+  - Modified: cmd/launch_dispatch_test.go
   - Modified: cmd/launch_codex_test.go
   - Modified: cmd/launch_codex_app_test.go
   - Modified: cmd/launch_claude_test.go

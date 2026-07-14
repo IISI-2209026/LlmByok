@@ -19,7 +19,11 @@ const claudeBinary = "claude"
 // 再以 runner.LaunchClaude 暫時注入 ANTHROPIC_BASE_URL /
 // ANTHROPIC_API_KEY / ANTHROPIC_MODEL 啟動 claude 子程序。
 // 父程序環境與 ~/.claude/settings.json 永不被修改。
-func runLaunchClaude(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer) error {
+func runLaunchClaude(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer, options ...launchOptions) error {
+	opt := launchOptions{}
+	if len(options) > 0 {
+		opt = options[0]
+	}
 	// 1. 解析設定檔路徑。
 	path, err := configPath(cfgPath)
 	if err != nil {
@@ -100,7 +104,7 @@ func runLaunchClaude(cfgPath, profileName, model string, extraArgs []string, std
 	}
 
 	// 8. 以暫時的 BYOK 環境變數啟動 claude（父程序環境不變）。
-	if err := runner.LaunchClaude(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
+	if err := runner.LaunchClaude(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, opt.effort, opt.subModel); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// claude 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

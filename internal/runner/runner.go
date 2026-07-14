@@ -16,8 +16,8 @@ import (
 var byokKeys = map[string]struct{}{
 	"COPILOT_PROVIDER_BASE_URL": {},
 	"COPILOT_PROVIDER_TYPE":     {},
-	"COPILOT_PROVIDER_API_KEY":   {},
-	"COPILOT_MODEL":              {},
+	"COPILOT_PROVIDER_API_KEY":  {},
+	"COPILOT_MODEL":             {},
 }
 
 // BuildEnv 回傳環境切片（os.Environ() 形式的 "KEY=VALUE"
@@ -75,8 +75,20 @@ func BuildEnv(profile *config.Profile, model string) []string {
 //
 // extraArgs 會原樣附加為子程序的命令列參數；傳入 nil 或空切片
 // 時不附加任何參數（與舊版行為一致）。
-func Launch(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	cmd := exec.Command(exePath, extraArgs...)
+func buildCopilotArgs(effort string, extraArgs []string) []string {
+	args := make([]string, 0, len(extraArgs)+2)
+	if effort != "" {
+		args = append(args, "--reasoning-effort", effort)
+	}
+	return append(args, extraArgs...)
+}
+
+func Launch(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
+	e := ""
+	if len(effort) > 0 {
+		e = effort[0]
+	}
+	cmd := exec.Command(exePath, buildCopilotArgs(e, extraArgs)...)
 	cmd.Env = BuildEnv(profile, model)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
