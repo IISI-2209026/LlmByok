@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -41,6 +42,32 @@ func TestRunLaunchDryRun_DoesNotResolveKeyOrExecutable(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "real-secret") || !strings.Contains(stdout.String(), "***") {
 		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+func TestRenderLaunchDryRun_PiMasksKeyAndRendersTemporaryConfig(t *testing.T) {
+	p := &config.Profile{APIBase: "https://example.test/v1", APIKey: "real-secret", Provider: "openai"}
+	got := renderLaunchDryRun("pi", p, "gpt-5", launchOptions{effort: "high"}, []string{"--approve"})
+	if strings.Contains(got, "real-secret") {
+		t.Fatalf("API key leaked in output: %s", got)
+	}
+	for _, want := range []string{"***", "models.json", "PI_CODING_AGENT_DIR", "pi --model", "gpt-5", "--thinking", "high", "--approve"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q: %s", want, got)
+		}
+	}
+	if runtime.GOOS == "windows" {
+		for _, want := range []string{"Join-Path $env:TEMP", "finally", "Remove-Item"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("windows output missing %q: %s", want, got)
+			}
+		}
+	} else {
+		for _, want := range []string{"mktemp", "trap", "rm -rf"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("posix output missing %q: %s", want, got)
+			}
+		}
 	}
 }
 

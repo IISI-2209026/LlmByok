@@ -309,3 +309,43 @@ tests:
   - internal/runner/pi_test.go
   - cmd/launch_pi_test.go
 -->
+
+---
+### Requirement: Launch Pi with an optional thinking level
+
+The `byok launch pi` command SHALL add `--thinking <level>` to the pi child process only when a validated `--effort <level>` is provided. The child process arguments SHALL place `--model <model>` first, then `--thinking <level>`, then yolo and passthrough arguments. When `--effort` is omitted, the command SHALL not add `--thinking`. The temporary `PI_CODING_AGENT_DIR` and models.json mechanism SHALL remain unchanged.
+
+#### Scenario: Pi thinking argument injection
+
+- **WHEN** the user runs `byok launch pi --model gpt-5 --effort high`
+- **THEN** the pi child process arguments SHALL begin with `--model`, `gpt-5`, `--thinking`, and `high` in that order
+
+#### Scenario: Pi omits thinking argument by default
+
+- **WHEN** the user runs `byok launch pi` without `--effort`
+- **THEN** the pi child process SHALL receive no `--thinking` argument
+
+<!-- @trace
+source: add-launch-effort
+updated: 2026-07-15
+code:
+  - cmd/launch_claude.go
+  - internal/runner/runner.go
+  - cmd/launch_codex.go
+  - cmd/launch_dry_run.go
+  - internal/runner/claude.go
+  - README.md
+  - internal/runner/pi.go
+  - cmd/launch_pi.go
+  - AGENTS.md
+  - cmd/launch.go
+  - internal/version/version.go
+  - internal/runner/codex.go
+  - cmd/launch_effort.go
+  - cmd/launch_codex_app.go
+tests:
+  - cmd/launch_dry_run_test.go
+  - cmd/launch_effort_test.go
+  - internal/runner/launch_effort_test.go
+  - cmd/launch_dispatch_test.go
+-->
