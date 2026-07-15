@@ -34,7 +34,7 @@ const codexProviderID = "byok"
 //
 // TOML 字串值以雙引號包裹（不經過 shell，故不需外層 shell quoting）。
 // 模型解析（候選清單選擇）由呼叫端（cmd/launch 層）完成。
-func BuildCodexArgs(profile *config.Profile, model string) (env []string, configArgs []string) {
+func BuildCodexArgs(profile *config.Profile, model string, effort ...string) (env []string, configArgs []string) {
 	env = make([]string, 0, len(os.Environ())+1)
 	for _, entry := range os.Environ() {
 		key := entry
@@ -55,6 +55,9 @@ func BuildCodexArgs(profile *config.Profile, model string) (env []string, config
 		"--config", `model_providers.` + codexProviderID + `.base_url="` + profile.APIBase + `"`,
 		"--config", `model_providers.` + codexProviderID + `.env_key="` + codexAPIKeyEnv + `"`,
 	}
+	if len(effort) > 0 && effort[0] != "" {
+		configArgs = append(configArgs, "--config", `model_reasoning_effort="`+effort[0]+`"`)
+	}
 	return env, configArgs
 }
 
@@ -64,8 +67,8 @@ func BuildCodexArgs(profile *config.Profile, model string) (env []string, config
 // 與 stderr 透明連接。父程序環境永不被修改 — 僅子程序接收覆寫後的變數。
 //
 // 命令列順序：codex [<--config ...>] [<extraArgs...>]。
-func LaunchCodex(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	env, configArgs := BuildCodexArgs(profile, model)
+func LaunchCodex(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
+	env, configArgs := BuildCodexArgs(profile, model, effort...)
 	args := append([]string(nil), configArgs...)
 	args = append(args, extraArgs...)
 
@@ -83,8 +86,8 @@ func LaunchCodex(profile *config.Profile, model, exePath string, extraArgs []str
 // 連接。父程序環境永不被修改 — 僅子程序接收覆寫後的變數。
 //
 // 命令列順序：codex app [--config ...] [<extraArgs...>]。
-func LaunchCodexApp(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	env, configArgs := BuildCodexArgs(profile, model)
+func LaunchCodexApp(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
+	env, configArgs := BuildCodexArgs(profile, model, effort...)
 	args := []string{"app"}
 	args = append(args, configArgs...)
 	args = append(args, extraArgs...)

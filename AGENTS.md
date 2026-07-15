@@ -53,13 +53,15 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - `config add`/`delete`/`set-default`/`update` 以第一位置參數接收 profile 名稱（不再使用 `--name` 旗標）。
 - `byok launch <target>` 模型解析：帶 `--model` 一律使用之；未帶時依 profile `models` 清單——僅一個直接使用、多個且 stdin 為終端機時顯示上下鍵互動選單（`internal/config.SelectModel`）、多個但非終端機時報錯、為空時報錯並提示 `byok config set-models`。互動選單於真實終端機下將 stdin 切換為 raw mode（`term.MakeRaw`，即時讀鍵、關閉回顯與行緩衝，使方向鍵以 ANSI 序列送達）並於 stdout 啟用虛擬終端機處理（Windows 透過 `SetConsoleMode`，Unix 原生支援，集中於 `internal/config/models_windows.go`/`models_unix.go`），以「❯ 游標 + 反白（`\x1b[7m`）」標記選取列原地重繪；Ctrl-C 或 Esc 取消（回傳 `config.ErrSelectionCancelled`，呼叫端以非零結束碼退出）。解析後的單一模型字串傳入 runner 注入環境變數，runner 不再自行回退 default_model。
 - 預設 provider 為 `openai`（空字串回退為 `openai`）；首版僅支援 `openai` provider 類型。
+- `byok launch <target>` 另接受選填 `--effort <level>`、`--sub-model <model>` 與 `--dry-run`。effort 依 target 驗證：Copilot/Codex/Codex App 為 `none|minimal|low|medium|high|xhigh|max`、Claude 為 `low|medium|high|xhigh|max`、pi 為 `off|minimal|low|medium|high|xhigh|max`。effort 只暫時注入子程序：Copilot 使用 `--reasoning-effort`、Codex/Codex App 使用頂層 `--config model_reasoning_effort`、Claude 使用 `CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1` 與 `CLAUDE_CODE_EFFORT_LEVEL`、pi 使用 `--thinking`。`--sub-model` 僅 Claude 注入 `CLAUDE_CODE_SUBAGENT_MODEL`，其他 target 接受但 no-op；三個旗標未指定時維持既有行為。
+- `--dry-run` 解析設定檔、provider、模型與旗標後，只輸出平台原生的 PowerShell 或 POSIX shell 等效命令，不讀取 API key、不檢查 target PATH、不啟動子程序；輸出中的 API key 一律為已引用的 `***`，pi 另輸出 masked `models.json` 與暫存目錄建立/清理片段。
 - API 金鑰以 OS keychain 為主要儲存（`byok config add`/`update` 時以 `--key-storage keychain`（預設）指定），明碼 `api_key` 為 fallback；`launch` 時由 `KeyResolver` 自動解析。
 
 # 開發規範
 
 - **BYOK 注入僅作用於子程序** — 環境變數只注入到 `copilot` / `codex` / `codex app` / `claude` / `pi` 子行程，父程序（Shell）與系統環境永不被改變。
 - **不寫入使用者設定檔** — `byok` 不會修改 `~/.byok/config.yaml`、`~/.codex/config.toml`、`~/.claude/settings.json`、`~/.pi/agent/models.json` 或任何 Copilot/Codex/Claude/pi 設定檔；codex 連線覆寫僅透過命令列 `--config` 旗標傳遞；claude 僅透過環境變數注入；pi 透過 `PI_CODING_AGENT_DIR` 環境變數指向臨時目錄（含 `models.json` provider override），不修改使用者 pi 設定目錄。
-- **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。
+- **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。`byok launch` 未帶 target 時例外：stdout 印出與 `byok launch --help` 相同的 launch help（Usage、Targets、Flags、Examples），stderr 印出缺少 target 的錯誤後以非零結束碼退出；不支援的 target 與後續 launch 錯誤不額外印出 help。
 - **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
 - **金鑰以 OS keychain 為主要儲存、明碼 `api_key` 為 fallback** — `byok config add`/`update` 預設以 `--key-storage keychain` 將金鑰存入 keychain（service=`byok`、key=`profile:<name>`）並清除設定檔明碼；可用 `--key-storage plaintext` 改存明碼至設定檔。`delete` 移除 profile 時同步清理 keychain（盡力）。`launch` 時 `KeyResolver` 依 keychain → 明碼順序解析，兩者皆無則報錯。Linux 需 secret-service daemon（gnome-keyring/KWallet）；無 daemon 時回傳 backend-unavailable，可改用 `--key-storage plaintext`。`add`/`update` 支援終端互動模式（未傳欄位旗標時觸發，需 TTY，非 TTY 印錯 exit 1）。
 - **測試以 `go test ./... -race` 執行** — 新增功能須伴隨單元/整合測試，並以 `-race` 確認無資料競爭。

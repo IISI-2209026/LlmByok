@@ -342,3 +342,38 @@ tests:
   - cmd/launch_dispatch_test.go
   - internal/runner/codex_app_test.go
 -->
+
+---
+### Requirement: Launch Codex App with an optional reasoning effort
+
+The `byok launch codex-app` command SHALL add `--config model_reasoning_effort="<level>"` to the Codex child process only when a validated `--effort <level>` is provided. The `app` subcommand SHALL remain the first child-process argument, the effort override SHALL follow the existing BYOK `--config` overrides, and yolo and passthrough arguments SHALL remain last. When `--effort` is omitted, the command SHALL NOT add `model_reasoning_effort`.
+
+#### Scenario: Codex App effort override keeps app first
+
+- **WHEN** the user runs `byok launch codex-app --effort xhigh`
+- **THEN** the child process arguments SHALL start with `app`, include `--config` followed by `model_reasoning_effort="xhigh"`, and place any yolo or passthrough argument after all config overrides
+
+<!-- @trace
+source: add-launch-effort
+updated: 2026-07-15
+code:
+  - cmd/launch_claude.go
+  - internal/runner/runner.go
+  - cmd/launch_codex.go
+  - cmd/launch_dry_run.go
+  - internal/runner/claude.go
+  - README.md
+  - internal/runner/pi.go
+  - cmd/launch_pi.go
+  - AGENTS.md
+  - cmd/launch.go
+  - internal/version/version.go
+  - internal/runner/codex.go
+  - cmd/launch_effort.go
+  - cmd/launch_codex_app.go
+tests:
+  - cmd/launch_dry_run_test.go
+  - cmd/launch_effort_test.go
+  - internal/runner/launch_effort_test.go
+  - cmd/launch_dispatch_test.go
+-->

@@ -275,6 +275,22 @@ byok launch claude -y -- review this
 byok launch pi -y -- --continue
 ```
 
+`--effort`、`--sub-model` 與 `--dry-run` 都是選填旗標。effort 會暫時映射為 Copilot 的
+`--reasoning-effort`、Codex/Codex App 的 `--config model_reasoning_effort`、Claude 的
+`CLAUDE_CODE_EFFORT_LEVEL`（並啟用 `CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1`），或 pi 的
+`--thinking`。Claude 也會以 `CLAUDE_CODE_SUBAGENT_MODEL` 接收 opaque 的 `--sub-model`；
+其他 target 接受但忽略 `--sub-model`。
+
+```bash
+byok launch codex --model gpt-5 --effort high
+byok launch claude --effort high --sub-model claude-haiku-4-5
+byok launch codex --model gpt-5 --effort high --dry-run
+```
+
+`--dry-run` 會解析 profile 與模型，但不解析 API key、不檢查 target 是否安裝，也不啟動子程序。
+Windows 輸出 PowerShell，其他平台輸出 POSIX shell；所有金鑰位置固定輸出為已引用的 `***`，
+複製命令前請先替換為實際金鑰。pi 的輸出會包含建立 masked `models.json`、執行與清理暫存目錄的完整片段。
+
 ### `byok config add <profile name>`
 
 新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。profile 名稱為第一位置參數；候選模型由 `byok config set-models` 維護，`add` 不設定模型。
