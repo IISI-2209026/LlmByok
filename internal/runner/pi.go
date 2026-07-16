@@ -51,7 +51,15 @@ func BuildPiEnv(profile *config.Profile, tempDir string) []string {
 //
 // 父程序環境與使用者 pi 設定檔永不被修改。模型解析（候選清單選擇）
 // 由呼叫端（cmd/launch 層）完成。
-func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer) error {
+func buildPiArgs(model, effort string, extraArgs []string) []string {
+	args := []string{"--model", model}
+	if effort != "" {
+		args = append(args, "--thinking", effort)
+	}
+	return append(args, extraArgs...)
+}
+
+func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
 	tempDir, err := os.MkdirTemp("", "byok-pi-*")
 	if err != nil {
 		return err
@@ -74,9 +82,11 @@ func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string
 		return err
 	}
 
-	args := make([]string, 0, len(extraArgs)+2)
-	args = append(args, "--model", model)
-	args = append(args, extraArgs...)
+	e := ""
+	if len(effort) > 0 {
+		e = effort[0]
+	}
+	args := buildPiArgs(model, e, extraArgs)
 
 	cmd := exec.Command(exePath, args...)
 	cmd.Env = BuildPiEnv(profile, tempDir)

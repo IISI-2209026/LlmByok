@@ -22,6 +22,7 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 	scenarios := []struct {
 		name          string
 		args          []string
+		wantStdout    string
 		wantStderr    string
 		wantExitOne   bool
 		wantSupported bool
@@ -29,6 +30,7 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 		{
 			name:        "omitted target",
 			args:        []string{},
+			wantStdout:  "Targets:",
 			wantStderr:  "必須指定目標工具",
 			wantExitOne: true,
 		},
@@ -74,7 +76,8 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {
 			cmd := newLaunchCmd()
-			var stderr bytes.Buffer
+			var stdout, stderr bytes.Buffer
+			cmd.SetOut(&stdout)
 			cmd.SetErr(&stderr)
 			cmd.SetArgs(sc.args)
 			err := cmd.Execute()
@@ -88,12 +91,42 @@ func TestLaunch_TargetToolSelection(t *testing.T) {
 			if !strings.Contains(stderr.String(), sc.wantStderr) {
 				t.Errorf("stderr missing %q, got: %s", sc.wantStderr, stderr.String())
 			}
+			if sc.wantStdout != "" && !strings.Contains(stdout.String(), sc.wantStdout) {
+				t.Errorf("stdout missing %q, got: %s", sc.wantStdout, stdout.String())
+			}
+			if sc.name == "unsupported target" && stdout.Len() != 0 {
+				t.Errorf("unsupported target must not print help, got stdout: %s", stdout.String())
+			}
 			if sc.wantSupported {
 				if !strings.Contains(stderr.String(), "copilot") || !strings.Contains(stderr.String(), "codex") || !strings.Contains(stderr.String(), "codex-app") || !strings.Contains(stderr.String(), "claude") || !strings.Contains(stderr.String(), "pi") {
 					t.Errorf("stderr should list supported tools copilot, codex, codex-app, claude & pi, got: %s", stderr.String())
 				}
 			}
 		})
+	}
+}
+
+func TestLaunch_OmittedTargetPrintsSameHelpAsHelpFlag(t *testing.T) {
+	helpCmd := newLaunchCmd()
+	var wantHelp bytes.Buffer
+	helpCmd.SetOut(&wantHelp)
+	helpCmd.SetArgs([]string{"--help"})
+	if err := helpCmd.Execute(); err != nil {
+		t.Fatalf("launch --help returned error: %v", err)
+	}
+
+	cmd := newLaunchCmd()
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != errExit {
+		t.Fatalf("launch without target error = %v, want errExit", err)
+	}
+	if got, want := stdout.String(), wantHelp.String(); got != want {
+		t.Errorf("launch without target stdout = %q, want launch --help output %q", got, want)
+	}
+	if !strings.Contains(stderr.String(), "必須指定目標工具") {
+		t.Errorf("stderr missing missing-target error, got: %s", stderr.String())
 	}
 }
 

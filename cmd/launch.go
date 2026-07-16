@@ -17,8 +17,8 @@ import (
 const copilotBinary = "copilot"
 
 func newLaunchCmd() *cobra.Command {
-	var model, profileName, cfgPath string
-	var yolo bool
+	var model, profileName, cfgPath, effort, subModel string
+	var yolo, dryRun bool
 	c := &cobra.Command{
 		Use:   "launch <target>",
 		Short: "以 BYOK profile 啟動 Copilot、Codex、Codex App、Claude 或 pi CLI（暫時注入環境變數）",
@@ -43,22 +43,37 @@ func newLaunchCmd() *cobra.Command {
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
+				if err := cmd.Help(); err != nil {
+					return err
+				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：必須指定目標工具（目前支援 copilot、codex、codex-app、claude、pi）\n")
 				return errExit
 			}
 			target := args[0]
+			if _, ok := launchEffortLevels[target]; !ok {
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex、codex-app、claude、pi）\n", target)
+				return errExit
+			}
+			if err := validateLaunchEffort(target, effort); err != nil {
+				fmt.Fprintln(cmd.ErrOrStderr(), "錯誤：", err)
+				return errExit
+			}
 			extraArgs := buildExtraArgs(yolo, target, args[1:])
+			options := launchOptions{effort: effort, subModel: subModel, dryRun: dryRun}
+			if dryRun {
+				return runLaunchDryRun(cfgPath, profileName, target, model, options, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			}
 			switch target {
 			case "copilot":
-				return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return runLaunchCopilot(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
 			case "codex":
-				return runLaunchCodex(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return runLaunchCodex(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
 			case "codex-app":
-				return runLaunchCodexApp(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return runLaunchCodexApp(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
 			case "claude":
-				return runLaunchClaude(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return runLaunchClaude(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
 			case "pi":
-				return runLaunchPi(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
+				return runLaunchPi(cfgPath, profileName, model, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
 			default:
 				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：不支援的工具 %q（目前支援 copilot、codex、codex-app、claude、pi）\n", target)
 				return errExit
@@ -72,6 +87,9 @@ func newLaunchCmd() *cobra.Command {
 	c.Flags().StringVar(&profileName, "profile", "", "要使用的 profile 名稱（預設使用 default_profile）")
 	c.Flags().StringVar(&cfgPath, "config", "", "設定檔路徑（預設為 ~/.byok/config.yaml）")
 	c.Flags().BoolVarP(&yolo, "yolo", "y", false, "啟用目標工具的 yolo 模式（等同附加 --yolo）")
+	c.Flags().StringVar(&effort, "effort", "", "暫時指定目標工具的 reasoning effort")
+	c.Flags().StringVar(&subModel, "sub-model", "", "暫時指定 Claude subagent model（其他 target 忽略）")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "只輸出遮罩金鑰的等效命令，不啟動目標工具")
 	// 自訂 usage 模板：Usage → Targets → Flags → Examples。
 	c.SetUsageTemplate(`Usage:
   {{.UseLine}}
@@ -92,7 +110,16 @@ Examples:
 	return c
 }
 
-func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer) error {
+type launchOptions struct {
+	effort, subModel string
+	dryRun           bool
+}
+
+func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer, options ...launchOptions) error {
+	opt := launchOptions{}
+	if len(options) > 0 {
+		opt = options[0]
+	}
 	// 1. 解析設定檔路徑。
 	path, err := configPath(cfgPath)
 	if err != nil {
@@ -173,7 +200,7 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 	}
 
 	// 8. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
-	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, os.Stdout, os.Stderr); err != nil {
+	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, opt.effort); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

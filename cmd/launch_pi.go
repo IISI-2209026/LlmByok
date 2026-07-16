@@ -20,7 +20,11 @@ const piInstallHint = "請先安裝 pi CLI。參見 https://pi.dev/docs/latest"
 // runner.LaunchPi 暫時注入 PI_CODING_AGENT_DIR（指向臨時目錄含
 // models.json）啟動 pi 子程序。父程序環境與 ~/.pi/agent/models.json
 // 永不被修改。
-func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer) error {
+func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer, options ...launchOptions) error {
+	opt := launchOptions{}
+	if len(options) > 0 {
+		opt = options[0]
+	}
 	profile, resolved, err := resolveProfileForLaunch(cfgPath, profileName, piBinary, piInstallHint, stderr)
 	if err != nil {
 		return err
@@ -33,7 +37,7 @@ func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout,
 	}
 
 	// 以臨時目錄 + models.json + PI_CODING_AGENT_DIR 啟動 pi（父程序環境不變）。
-	if err := runner.LaunchPi(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr); err != nil {
+	if err := runner.LaunchPi(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, opt.effort); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// pi 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit
