@@ -64,7 +64,7 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - **Profile 解析錯誤印訊息並 exit 1** — 設定檔不存在、profile 找不到、未設 `default_profile`、非 `openai` provider 等情境，皆印出錯誤與提示後以非零結束碼退出。`byok launch` 未帶 target 時例外：stdout 印出與 `byok launch --help` 相同的 launch help（Usage、Targets、Flags、Examples），stderr 印出缺少 target 的錯誤後以非零結束碼退出；不支援的 target 與後續 launch 錯誤不額外印出 help。
 - **預設 provider 為 `openai`** — `provider` 欄位為空時回退為 `openai`；非 `openai` 一律拒絕。
 - **金鑰以 OS keychain 為主要儲存、明碼 `api_key` 為 fallback** — `byok config add`/`update` 預設以 `--key-storage keychain` 將金鑰存入 keychain（service=`byok`、key=`profile:<name>`）並清除設定檔明碼；可用 `--key-storage plaintext` 改存明碼至設定檔。`delete` 移除 profile 時同步清理 keychain（盡力）。`launch` 時 `KeyResolver` 依 keychain → 明碼順序解析，兩者皆無則報錯。Linux 需 secret-service daemon（gnome-keyring/KWallet）；無 daemon 時回傳 backend-unavailable，可改用 `--key-storage plaintext`。`add`/`update` 支援終端互動模式（未傳欄位旗標時觸發，需 TTY，非 TTY 印錯 exit 1）。
-- **測試以 `go test ./... -race` 執行** — 新增功能須伴隨單元/整合測試，並以 `-race` 確認無資料競爭。
+- **測試以 `go test ./...` 執行** — 新增功能須伴隨單元/整合測試。
 - **`byok update` 自我更新** — `byok update` 依當前版本 channel（含 `-dev.` 為 dev、否則 stable）查詢 GitHub Releases，下載對應平台資產（`byok-<version>-<goos>-<goarch>.<ext>`）並原子替換執行檔。`--check` 只查詢不替換；`--channel prerelease|release` 覆寫 channel 判定。啟動版本檢查：`launch`/`update` 以外子指令完成後以 3 秒 timeout 查詢，較新時在 stderr 印提示；`BYOK_NO_UPDATE_CHECK=1` 停用；任何錯誤靜默不影響 exit code。
 - **Release changelog 以 conventional commit 分類產生** — Release workflow 於建立 GitHub Release 前以 `git log` 取 commit subject，依 prefix 分類（`feat:` → 新增功能、`refactor:`/`perf:` → 優化功能、`fix:` → 修復功能）輸出 Markdown 至 `changelog.md`，作為 release body。
 
