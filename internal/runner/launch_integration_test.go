@@ -38,7 +38,7 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gemma4", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gemma4", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -102,7 +102,7 @@ func TestLaunchIntegration_ExtraArgsForwarded(t *testing.T) {
 	extraArgs := []string{"--yolo", "--continue", "--model", "x"}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gemma4", stub, extraArgs, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gemma4", stub, extraArgs, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -156,7 +156,7 @@ func TestLaunchIntegration_NoExtraArgs(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := Launch(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 

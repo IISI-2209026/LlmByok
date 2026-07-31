@@ -200,7 +200,7 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 	}
 
 	// 8. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
-	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, opt.effort); err != nil {
+	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, cfg.Telemetry, opt.effort); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit
@@ -216,11 +216,11 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 // exec.LookPath 解析可執行檔、解析 API 金鑰。成功時回傳已注入金鑰的
 // profile 與可執行檔路徑；失敗時將錯誤訊息寫入 stderr 並回傳 errExit。
 // binaryName 為 PATH 中查找的可執行檔名稱；installHint 為找不到時的提示。
-func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint string, stderr io.Writer) (*config.Profile, string, error) {
+func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint string, stderr io.Writer) (*config.Profile, *config.Telemetry, string, error) {
 	// 1. 解析設定檔路徑。
 	path, err := configPath(cfgPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("解析設定檔路徑: %w", err)
+		return nil, nil, "", fmt.Errorf("解析設定檔路徑: %w", err)
 	}
 
 	// 2. 載入設定檔；檔案不存在為嚴重錯誤並附上提示。
@@ -229,10 +229,10 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 		if isNotExistMsg(err) {
 			fmt.Fprintf(stderr, "錯誤：在 %q 找不到設定檔\n", path)
 			fmt.Fprintf(stderr, "提示：請先以 `byok config add` 新增 profile\n")
-			return nil, "", errExit
+			return nil, nil, "", errExit
 		}
 		fmt.Fprintf(stderr, "錯誤：讀取設定檔 %q 失敗: %v\n", path, err)
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 
 	// 3. 選擇 profile（指定名稱或預設值）。
@@ -243,7 +243,7 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 	if selected == "" {
 		fmt.Fprintf(stderr, "錯誤：未指定 profile 且 %q 中未設定 default_profile\n", path)
 		fmt.Fprintf(stderr, "提示：執行 `byok config set-default --name <profile>` 或傳入 --profile\n")
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 	var profile *config.Profile
 	for i := range cfg.Profiles {
@@ -260,7 +260,7 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 		} else {
 			fmt.Fprintf(stderr, "尚無任何 profile。請先執行 `byok config add`。\n")
 		}
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 
 	// 4. Provider 驗證：此版本僅支援 openai。
@@ -270,7 +270,7 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 	}
 	if provider != "openai" {
 		fmt.Fprintf(stderr, "錯誤：profile %q 使用 provider %q；byok 首版僅支援 openai provider\n", profile.Name, provider)
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 
 	// 5. 確認可執行檔可在 PATH 中解析。
@@ -278,7 +278,7 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 	if err != nil {
 		fmt.Fprintf(stderr, "錯誤：在 PATH 中找不到 %q 可執行檔\n", binaryName)
 		fmt.Fprintf(stderr, "提示：%s\n", installHint)
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 
 	// 6. 解析 API 金鑰（keychain 優先、明碼 fallback）。
@@ -286,11 +286,11 @@ func resolveProfileForLaunch(cfgPath, profileName, binaryName, installHint strin
 	if err != nil {
 		fmt.Fprintf(stderr, "錯誤：找不到 profile %q 的金鑰（keychain 與設定檔皆無）\n", profile.Name)
 		fmt.Fprintf(stderr, "提示：執行 `byok config set-key %s` 將金鑰存入 keychain\n", profile.Name)
-		return nil, "", errExit
+		return nil, nil, "", errExit
 	}
 	profile.APIKey = apiKey
 
-	return profile, resolved, nil
+	return profile, cfg.Telemetry, resolved, nil
 }
 
 // availableProfileNames 回傳供錯誤訊息使用的設定檔名稱清單。

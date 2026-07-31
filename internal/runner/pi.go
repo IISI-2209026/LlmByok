@@ -19,7 +19,7 @@ import (
 // 與 BuildClaudeEnv 不同，pi 的 base URL 與 API key 透過臨時目錄中的
 // models.json 注入（由 LaunchPi 負責），而非環境變數，因此 profile
 // 參數在此函式中不參與環境組裝。
-func BuildPiEnv(profile *config.Profile, tempDir string) []string {
+func BuildPiEnv(profile *config.Profile, tempDir string, telemetry *config.Telemetry) []string {
 	_ = profile
 
 	env := make([]string, 0, len(os.Environ())+1)
@@ -36,6 +36,17 @@ func BuildPiEnv(profile *config.Profile, tempDir string) []string {
 	}
 
 	env = append(env, "PI_CODING_AGENT_DIR="+tempDir)
+
+	// Telemetry injection: Pi 僅支援 HTTP。
+	if telemetry != nil && telemetry.Enabled && telemetry.HTTP != nil && telemetry.HTTP.Endpoint != "" {
+		env = append(env,
+			"PI_OTEL_ENABLED=true",
+			"OTEL_EXPORTER_OTLP_ENDPOINT="+telemetry.HTTP.Endpoint,
+		)
+		if sn := config.ComposeServiceName(telemetry.ServiceName, "pi"); sn != "" {
+			env = append(env, "OTEL_SERVICE_NAME="+sn)
+		}
+	}
 
 	return env
 }
@@ -59,7 +70,7 @@ func buildPiArgs(model, effort string, extraArgs []string) []string {
 	return append(args, extraArgs...)
 }
 
-func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
+func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, telemetry *config.Telemetry, effort ...string) error {
 	tempDir, err := os.MkdirTemp("", "byok-pi-*")
 	if err != nil {
 		return err
@@ -89,7 +100,7 @@ func LaunchPi(profile *config.Profile, model, exePath string, extraArgs []string
 	args := buildPiArgs(model, e, extraArgs)
 
 	cmd := exec.Command(exePath, args...)
-	cmd.Env = BuildPiEnv(profile, tempDir)
+	cmd.Env = BuildPiEnv(profile, tempDir, telemetry)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

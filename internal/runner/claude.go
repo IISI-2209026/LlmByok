@@ -30,7 +30,7 @@ var claudeByokKeys = map[string]struct{}{
 //
 // 其餘現有環境變數保持不變。父程序環境永不被修改。模型解析（候選清單
 // 選擇）由呼叫端（cmd/launch 層）完成。
-func BuildClaudeEnv(profile *config.Profile, model string, options ...string) []string {
+func BuildClaudeEnv(profile *config.Profile, model string, telemetry *config.Telemetry, options ...string) []string {
 	effort, subModel := "", ""
 	if len(options) > 0 {
 		effort = options[0]
@@ -69,6 +69,38 @@ func BuildClaudeEnv(profile *config.Profile, model string, options ...string) []
 		env = append(env, "CLAUDE_CODE_SUBAGENT_MODEL="+subModel)
 	}
 
+	// Telemetry injection: Claude 支援 gRPC（優先）與 HTTP。
+	if telemetry != nil && telemetry.Enabled {
+		endpoint := ""
+		protocol := ""
+		if telemetry.GRPC != nil && telemetry.GRPC.Endpoint != "" {
+			endpoint = telemetry.GRPC.Endpoint
+			protocol = "grpc"
+		} else if telemetry.HTTP != nil && telemetry.HTTP.Endpoint != "" {
+			endpoint = telemetry.HTTP.Endpoint
+			p := telemetry.HTTP.Protocol
+			if p == "" {
+				p = "protobuf"
+			}
+			protocol = "http/" + p
+		}
+		if endpoint != "" {
+			env = append(env,
+				"CLAUDE_CODE_ENABLE_TELEMETRY=1",
+				"OTEL_METRICS_EXPORTER=otlp",
+				"OTEL_LOGS_EXPORTER=otlp",
+				"OTEL_EXPORTER_OTLP_ENDPOINT="+endpoint,
+				"OTEL_EXPORTER_OTLP_PROTOCOL="+protocol,
+			)
+			if len(telemetry.Headers) > 0 {
+				env = append(env, "OTEL_EXPORTER_OTLP_HEADERS="+formatHeaders(telemetry.Headers))
+			}
+			if sn := config.ComposeServiceName(telemetry.ServiceName, "claude"); sn != "" {
+				env = append(env, "OTEL_SERVICE_NAME="+sn)
+			}
+		}
+	}
+
 	return env
 }
 
@@ -76,9 +108,9 @@ func BuildClaudeEnv(profile *config.Profile, model string, options ...string) []
 // claude 可執行檔為子程序。extraArgs 會原樣附加為子程序的命令列
 // 參數。stdin、stdout 與 stderr 透明連接。父程序環境永不被修改 —
 // 僅子程序接收覆寫後的變數。
-func LaunchClaude(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, options ...string) error {
+func LaunchClaude(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, telemetry *config.Telemetry, options ...string) error {
 	cmd := exec.Command(exePath, extraArgs...)
-	cmd.Env = BuildClaudeEnv(profile, model, options...)
+	cmd.Env = BuildClaudeEnv(profile, model, telemetry, options...)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

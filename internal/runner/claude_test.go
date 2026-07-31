@@ -20,7 +20,7 @@ func TestBuildClaudeEnv_OverridesByokVars(t *testing.T) {
 		APIKey:   "sk-claude-test",
 		Models:   []string{"claude-sonnet-4-5"},
 	}
-	env := BuildClaudeEnv(&profile, "claude-sonnet-4-5")
+	env := BuildClaudeEnv(&profile, "claude-sonnet-4-5", nil)
 
 	if got := getEnv(t, env, "ANTHROPIC_BASE_URL"); got != "https://api.openai.com/v1" {
 		t.Errorf("ANTHROPIC_BASE_URL = %q, want %q", got, "https://api.openai.com/v1")
@@ -45,7 +45,7 @@ func TestBuildClaudeEnv_ModelOverride(t *testing.T) {
 		APIKey:   "sk-test",
 		Models:   []string{"claude-sonnet-4-5"},
 	}
-	env := BuildClaudeEnv(&profile, "claude-opus-4-1")
+	env := BuildClaudeEnv(&profile, "claude-opus-4-1", nil)
 
 	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "claude-opus-4-1[1m]" {
 		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "claude-opus-4-1[1m]")
@@ -66,7 +66,7 @@ func TestBuildClaudeEnv_OverwritesExistingByokVar(t *testing.T) {
 		APIKey:   "sk-test",
 		Models:   []string{"new-model"},
 	}
-	env := BuildClaudeEnv(&profile, "new-model")
+	env := BuildClaudeEnv(&profile, "new-model", nil)
 
 	if got := getEnv(t, env, "ANTHROPIC_MODEL"); got != "new-model[1m]" {
 		t.Errorf("ANTHROPIC_MODEL = %q, want %q", got, "new-model[1m]")
@@ -102,7 +102,7 @@ func TestLaunchClaude_ByokVarsInjected(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchClaude(profile, "claude-opus-4-1", stub, []string{"--dangerously-skip-permissions"}, nil, &stdout, &stderr); err != nil {
+	if err := LaunchClaude(profile, "claude-opus-4-1", stub, []string{"--dangerously-skip-permissions"}, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchClaude failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -171,7 +171,7 @@ func TestLaunchClaude_NoExtraArgs(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchClaude(profile, "claude-sonnet-4-5", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchClaude(profile, "claude-sonnet-4-5", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchClaude failed: %v (stderr=%s)", err, stderr.String())
 	}
 

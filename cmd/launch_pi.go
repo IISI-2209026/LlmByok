@@ -25,7 +25,7 @@ func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout,
 	if len(options) > 0 {
 		opt = options[0]
 	}
-	profile, resolved, err := resolveProfileForLaunch(cfgPath, profileName, piBinary, piInstallHint, stderr)
+	profile, telemetry, resolved, err := resolveProfileForLaunch(cfgPath, profileName, piBinary, piInstallHint, stderr)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func runLaunchPi(cfgPath, profileName, model string, extraArgs []string, stdout,
 	}
 
 	// 以臨時目錄 + models.json + PI_CODING_AGENT_DIR 啟動 pi（父程序環境不變）。
-	if err := runner.LaunchPi(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, opt.effort); err != nil {
+	if err := runner.LaunchPi(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, telemetry, opt.effort); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// pi 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit

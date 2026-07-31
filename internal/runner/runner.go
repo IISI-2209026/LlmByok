@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/IISI-2209026/LlmByok/internal/config"
@@ -20,6 +21,21 @@ var byokKeys = map[string]struct{}{
 	"COPILOT_MODEL":             {},
 }
 
+// formatHeaders 將 headers map 格式化為 OTEL_EXPORTER_OTLP_HEADERS 值
+// （comma-separated key=value）。輸出依鍵名排序以確保確定性。
+func formatHeaders(headers map[string]string) string {
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+headers[k])
+	}
+	return strings.Join(parts, ",")
+}
+
 // BuildEnv 回傳環境切片（os.Environ() 形式的 "KEY=VALUE"
 // 字串），適合指定給 exec.Cmd.Env。它以現行程序環境
 // （os.Environ()）為起點，並覆寫下列四個 Copilot BYOK 變數：
@@ -31,7 +47,10 @@ var byokKeys = map[string]struct{}{
 //
 // 其餘現有環境變數保持不變。model 為空時 COPILOT_MODEL 設為空字串；
 // 模型解析（候選清單選擇）由呼叫端（cmd/launch 層）完成。
-func BuildEnv(profile *config.Profile, model string) []string {
+//
+// 當 telemetry 非 nil 且 enabled 且 HTTP endpoint 存在時，額外注入
+// OTEL 相關環境變數。
+func BuildEnv(profile *config.Profile, model string, telemetry *config.Telemetry) []string {
 	env := make([]string, 0, len(os.Environ())+4)
 
 	// 複製現有環境，略過既存的 BYOK 鍵，使下方的覆寫成為
@@ -62,6 +81,25 @@ func BuildEnv(profile *config.Profile, model string) []string {
 		"COPILOT_PROVIDER_MAX_OUTPUT_TOKENS=131072",
 	)
 
+	// Telemetry injection: Copilot 僅支援 HTTP。
+	if telemetry != nil && telemetry.Enabled && telemetry.HTTP != nil && telemetry.HTTP.Endpoint != "" {
+		protocol := telemetry.HTTP.Protocol
+		if protocol == "" {
+			protocol = "protobuf"
+		}
+		env = append(env,
+			"COPILOT_OTEL_ENABLED=true",
+			"OTEL_EXPORTER_OTLP_ENDPOINT="+telemetry.HTTP.Endpoint,
+			"OTEL_EXPORTER_OTLP_PROTOCOL=http/"+protocol,
+		)
+		if len(telemetry.Headers) > 0 {
+			env = append(env, "OTEL_EXPORTER_OTLP_HEADERS="+formatHeaders(telemetry.Headers))
+		}
+		if sn := config.ComposeServiceName(telemetry.ServiceName, "copilot"); sn != "" {
+			env = append(env, "OTEL_SERVICE_NAME="+sn)
+		}
+	}
+
 	return env
 }
 
@@ -83,13 +121,13 @@ func buildCopilotArgs(effort string, extraArgs []string) []string {
 	return append(args, extraArgs...)
 }
 
-func Launch(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, effort ...string) error {
+func Launch(profile *config.Profile, model, exePath string, extraArgs []string, stdin io.Reader, stdout, stderr io.Writer, telemetry *config.Telemetry, effort ...string) error {
 	e := ""
 	if len(effort) > 0 {
 		e = effort[0]
 	}
 	cmd := exec.Command(exePath, buildCopilotArgs(e, extraArgs)...)
-	cmd.Env = BuildEnv(profile, model)
+	cmd.Env = BuildEnv(profile, model, telemetry)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr

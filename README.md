@@ -517,6 +517,60 @@ push 至 `main` 或 `develop` 分支時，`.github/workflows/release.yml` 會：
 go build -ldflags "-X github.com/IISI-2209026/LlmByok/internal/version.Version=0.1.0" -o byok ./cmd/byok
 ```
 
+## OpenTelemetry
+
+`byok` 支援透過設定檔統一注入 OpenTelemetry（OTEL）遙測設定至各 target 子程序。各 target 原生 OTEL 支援方式各異，`byok` 會自動轉譯為對應格式。
+
+### 設定格式
+
+在 `~/.byok/config.yaml` 加入頂層 `telemetry` 區段：
+
+```yaml
+telemetry:
+  enabled: true
+  service_name: "my-team"        # 選填，組合為 <service_name>-<agent-name>
+  headers:                        # 選填，認證用 headers
+    Authorization: "Bearer token"
+  grpc:                           # 選填，gRPC OTLP endpoint
+    endpoint: "http://localhost:4317"
+  http:                           # 選填，HTTP OTLP endpoint
+    endpoint: "http://localhost:4318"
+    protocol: "protobuf"          # protobuf（預設）或 json
+```
+
+### 各 Target 對應方式
+
+| Target | 選用 Endpoint | 注入方式 |
+|--------|--------------|----------|
+| Copilot CLI | HTTP only | 環境變數：`COPILOT_OTEL_ENABLED`、`OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_EXPORTER_OTLP_PROTOCOL`、`OTEL_EXPORTER_OTLP_HEADERS`、`OTEL_SERVICE_NAME` |
+| Codex / Codex App | gRPC 優先，HTTP fallback | `--config otel.*` 旗標 + `OTEL_SERVICE_NAME` 環境變數 |
+| Claude | gRPC 優先，HTTP fallback | 環境變數：`CLAUDE_CODE_ENABLE_TELEMETRY`、`OTEL_METRICS_EXPORTER`、`OTEL_LOGS_EXPORTER`、`OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_EXPORTER_OTLP_PROTOCOL`、`OTEL_EXPORTER_OTLP_HEADERS`、`OTEL_SERVICE_NAME` |
+| Pi | HTTP only | 環境變數：`PI_OTEL_ENABLED`、`OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_SERVICE_NAME`（不注入 headers） |
+
+### Service Name 組合
+
+設定 `service_name: "x"` 時，各 target 注入的 `OTEL_SERVICE_NAME` 為：
+- Copilot → `x-github-copilot`
+- Codex / Codex App → `x-codex-cli`
+- Claude → `x-claude-code`
+- Pi → `x-pi-coding-agent`
+
+未設定 `service_name` 時不注入，各 target 使用原生預設。
+
+### 注意事項
+
+- 建議同時設定 `grpc` 與 `http` 兩組 endpoint，確保所有 target 皆可注入
+- 僅設 `grpc` 時，Copilot 與 Pi 不會注入 telemetry（靜默跳過，不報錯）
+- Pi 需使用者自行安裝 `pi-otel-telemetry` extension
+- `--dry-run` 輸出會包含 telemetry 環境變數/旗標，headers 值以 `***` mask
+
+### 官方文件來源
+
+- **Copilot CLI**：`copilot help monitoring`
+- **Codex**：https://github.com/openai/codex — `codex-rs/otel/README.md`
+- **Claude Code**：https://docs.anthropic.com/en/docs/claude-code/monitoring-usage
+- **Pi**：https://github.com/mprokopov/pi-otel-telemetry
+
 ## 運作原理（暫時性注入）
 
 ### Copilot BYOK

@@ -30,7 +30,7 @@ func TestLaunchCodexApp_AppSubcommandPrecedesConfig(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodexApp(profile, "gemma4", stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodexApp(profile, "gemma4", stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodexApp failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -89,7 +89,7 @@ func TestLaunchCodexApp_NoExtraArgs(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodexApp(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodexApp(profile, "", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodexApp failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -135,7 +135,7 @@ func TestLaunchCodexApp_ParentEnvUnchanged(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodexApp(profile, "", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodexApp(profile, "", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodexApp failed: %v (stderr=%s)", err, stderr.String())
 	}
 

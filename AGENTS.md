@@ -56,6 +56,7 @@ Changes can be parked（暫存）— temporarily moved out of `openspec/changes/
 - `byok launch <target>` 另接受選填 `--effort <level>`、`--sub-model <model>` 與 `--dry-run`。effort 依 target 驗證：Copilot/Codex/Codex App 為 `none|minimal|low|medium|high|xhigh|max`、Claude 為 `low|medium|high|xhigh|max`、pi 為 `off|minimal|low|medium|high|xhigh|max`。effort 只暫時注入子程序：Copilot 使用 `--reasoning-effort`、Codex/Codex App 使用頂層 `--config model_reasoning_effort`、Claude 使用 `CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1` 與 `CLAUDE_CODE_EFFORT_LEVEL`、pi 使用 `--thinking`。`--sub-model` 僅 Claude 注入 `CLAUDE_CODE_SUBAGENT_MODEL`，其他 target 接受但 no-op；三個旗標未指定時維持既有行為。
 - `--dry-run` 解析設定檔、provider、模型與旗標後，只輸出平台原生的 PowerShell 或 POSIX shell 等效命令，不讀取 API key、不檢查 target PATH、不啟動子程序；輸出中的 API key 一律為已引用的 `***`，pi 另輸出 masked `models.json` 與暫存目錄建立/清理片段。
 - API 金鑰以 OS keychain 為主要儲存（`byok config add`/`update` 時以 `--key-storage keychain`（預設）指定），明碼 `api_key` 為 fallback；`launch` 時由 `KeyResolver` 自動解析。
+- 頂層 `telemetry` 區段（選填）統一管理 OpenTelemetry 遙測注入：`enabled`（bool）、`service_name`（選填前綴，組合為 `<name>-<agent-name>`）、`headers`（map，認證用）、`grpc.endpoint`、`http.endpoint` + `http.protocol`（`protobuf`|`json`）。`telemetry` 為 nil 或 `enabled: false` 時不注入任何 OTEL 設定。各 runner `Build*` 函式新增 `telemetry *config.Telemetry` 參數；Copilot/Pi 僅使用 HTTP endpoint、Codex/Claude 優先 gRPC 再 fallback HTTP；無相容 endpoint 時靜默跳過。`--dry-run` 輸出包含 telemetry 環境變數/旗標，headers 以 `***` mask。
 
 # 開發規範
 

@@ -24,7 +24,7 @@ func TestBuildPiEnv_SetsPiCodingAgentDir(t *testing.T) {
 
 	parentBefore := snapshotEnv()
 
-	env := BuildPiEnv(&profile, tempDir)
+	env := BuildPiEnv(&profile, tempDir, nil)
 
 	if got := getEnv(t, env, "PI_CODING_AGENT_DIR"); got != tempDir {
 		t.Errorf("PI_CODING_AGENT_DIR = %q, want %q", got, tempDir)
@@ -50,7 +50,7 @@ func TestBuildPiEnv_OverwritesExistingPiCodingAgentDir(t *testing.T) {
 	}
 	tempDir := "/new/pi/dir"
 
-	env := BuildPiEnv(&profile, tempDir)
+	env := BuildPiEnv(&profile, tempDir, nil)
 
 	if got := getEnv(t, env, "PI_CODING_AGENT_DIR"); got != tempDir {
 		t.Errorf("PI_CODING_AGENT_DIR = %q, want %q", got, tempDir)
@@ -70,7 +70,7 @@ func TestBuildPiEnv_PreservesOtherVars(t *testing.T) {
 		APIKey: "sk-test",
 		Models: []string{"gpt-4o"},
 	}
-	env := BuildPiEnv(&profile, "/tmp/pi-dir")
+	env := BuildPiEnv(&profile, "/tmp/pi-dir", nil)
 
 	if !contains(env, "BYOK_TEST_VAR=hello") {
 		t.Errorf("env missing preserved var BYOK_TEST_VAR=hello; got %v", env)
@@ -102,7 +102,7 @@ func TestLaunchPi_CreatesTempDirWithModelsJson(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -172,7 +172,7 @@ func TestLaunchPi_OverrideModel(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchPi(profile, "o4-mini", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "o4-mini", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -205,7 +205,7 @@ func TestLaunchPi_CleansUpTempDir(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -241,7 +241,7 @@ func TestLaunchPi_ExtraArgsPassthrough(t *testing.T) {
 
 	var stdout, stderr strings.Builder
 	extra := []string{"--approve", "fix this bug"}
-	if err := LaunchPi(profile, "gpt-4o", stub, extra, nil, &stdout, &stderr); err != nil {
+	if err := LaunchPi(profile, "gpt-4o", stub, extra, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchPi failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -277,7 +277,7 @@ func TestLaunchPi_ParentEnvUnchanged(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	_ = LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr)
+	_ = LaunchPi(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil)
 
 	if got := os.Getenv("BYOK_PARENT_MARKER"); got != "before" {
 		t.Errorf("BYOK_PARENT_MARKER = %q, want %q", got, "before")

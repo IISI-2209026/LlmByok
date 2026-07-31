@@ -17,7 +17,7 @@ func TestBuildCodexArgs_EnvCarriesAPIKey(t *testing.T) {
 		APIKey:   "sk-codex-test",
 		Models:   []string{"gpt-4o"},
 	}
-	env, _ := BuildCodexArgs(&profile, "gpt-4o")
+	env, _ := BuildCodexArgs(&profile, "gpt-4o", nil)
 	if got := getEnv(t, env, "BYOK_CODEX_API_KEY"); got != "sk-codex-test" {
 		t.Errorf("BYOK_CODEX_API_KEY = %q, want %q", got, "sk-codex-test")
 	}
@@ -35,7 +35,7 @@ func TestBuildCodexArgs_OverwritesExistingAPIKey(t *testing.T) {
 		APIKey:   "new-key",
 		Models:   []string{"gpt-4o"},
 	}
-	env, _ := BuildCodexArgs(&profile, "gpt-4o")
+	env, _ := BuildCodexArgs(&profile, "gpt-4o", nil)
 	if got := getEnv(t, env, "BYOK_CODEX_API_KEY"); got != "new-key" {
 		t.Errorf("BYOK_CODEX_API_KEY = %q, want %q", got, "new-key")
 	}
@@ -52,7 +52,7 @@ func TestBuildCodexArgs_ConfigArgsShape(t *testing.T) {
 		APIKey:   "sk-xxxx",
 		Models:   []string{"gpt-4o"},
 	}
-	_, configArgs := BuildCodexArgs(&profile, "gpt-4o")
+	_, configArgs := BuildCodexArgs(&profile, "gpt-4o", nil)
 
 	// configArgs 為成對的 ["--config", "<key>=<value>", ...]
 	want := []string{
@@ -80,7 +80,7 @@ func TestBuildCodexArgs_ModelOverride(t *testing.T) {
 		APIKey:   "sk-xxxx",
 		Models:   []string{"gpt-4o"},
 	}
-	_, configArgs := BuildCodexArgs(&profile, "gemma4")
+	_, configArgs := BuildCodexArgs(&profile, "gemma4", nil)
 	wantModel := `model="gemma4"`
 	if !slices.Contains(configArgs, wantModel) {
 		t.Errorf("configArgs missing %q, got %v", wantModel, configArgs)
@@ -98,7 +98,7 @@ func TestBuildCodexArgs_ConfigArgsAreFlagPairs(t *testing.T) {
 		APIKey:   "k",
 		Models:   []string{"gpt-4o"},
 	}
-	_, configArgs := BuildCodexArgs(&profile, "gpt-4o")
+	_, configArgs := BuildCodexArgs(&profile, "gpt-4o", nil)
 	for i := 0; i < len(configArgs); i += 2 {
 		if configArgs[i] != "--config" {
 			t.Errorf("configArgs[%d] = %q, want \"--config\" (must be flag pairs)", i, configArgs[i])

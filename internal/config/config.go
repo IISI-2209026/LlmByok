@@ -22,8 +22,9 @@ type Profile struct {
 // Config 是頂層設定結構，持有設定檔清單以及未指定設定檔時
 // 使用的設定檔名稱。
 type Config struct {
-	Profiles       []Profile `yaml:"profiles"`
-	DefaultProfile string    `yaml:"default_profile"`
+	Profiles       []Profile  `yaml:"profiles"`
+	DefaultProfile string     `yaml:"default_profile"`
+	Telemetry      *Telemetry `yaml:"telemetry,omitempty"`
 }
 
 // DefaultConfigPath 回傳設定檔的標準位置，位於
@@ -57,6 +58,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("解析設定檔 %s: %w", path, err)
 	}
 	migrateLegacyDefaultModel(cfg, data)
+	if err := cfg.Telemetry.Validate(); err != nil {
+		return nil, fmt.Errorf("設定檔 %s: %w", path, err)
+	}
 	return cfg, nil
 }
 

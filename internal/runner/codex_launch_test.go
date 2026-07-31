@@ -41,7 +41,7 @@ func TestLaunchCodex_ByokApiKeyAndConfigInjected(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodex(profile, "gemma4", stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodex(profile, "gemma4", stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodex failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -119,7 +119,7 @@ func TestLaunchCodex_NoExtraArgs(t *testing.T) {
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodex(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodex(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodex failed: %v (stderr=%s)", err, stderr.String())
 	}
 
