@@ -5,18 +5,76 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/IISI-2209026/LlmByok/internal/secret"
 	"gopkg.in/yaml.v3"
 )
 
+// Model 描述單一候選模型：名稱與可選的 token 限制。
+// ContextWindowTokens / MaxOutputTokens 為 nil 表示未設定。
+// YAML 解碼同時接受舊版 scalar（`- gpt-4o`）與新 mapping 形式；
+// scalar 正規化為只有 Name 的 Model。
+type Model struct {
+	Name                string `yaml:"name"`
+	ContextWindowTokens *int64 `yaml:"context_window_tokens,omitempty"`
+	MaxOutputTokens     *int64 `yaml:"max_output_tokens,omitempty"`
+}
+
+// UnmarshalYAML 實作 scalar-or-mapping 的相容解碼：Scalar 節點視為模型名稱
+// （token 限制未設定）；Mapping 節點依 name / context_window_tokens /
+// max_output_tokens 解碼。
+func (m *Model) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		m.Name = value.Value
+		m.ContextWindowTokens = nil
+		m.MaxOutputTokens = nil
+		return nil
+	}
+	type plain Model
+	var raw plain
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*m = Model(raw)
+	return nil
+}
+
+// ModelLimits 描述 profile 級的預設模型 token 限制（兩欄位皆可選，
+// nil 表示未設定）。未設定的欄位不會寫出。
+type ModelLimits struct {
+	ContextWindowTokens *int64 `yaml:"context_window_tokens,omitempty"`
+	MaxOutputTokens     *int64 `yaml:"max_output_tokens,omitempty"`
+}
+
 // Profile 描述單一 LLM provider 設定。
 type Profile struct {
-	Name     string   `yaml:"name"`
-	Provider string   `yaml:"provider"`
-	APIBase  string   `yaml:"api_base"`
-	APIKey   string   `yaml:"api_key,omitempty"`
-	Models   []string `yaml:"models"`
+	Name               string       `yaml:"name"`
+	Provider           string       `yaml:"provider"`
+	APIBase            string       `yaml:"api_base"`
+	APIKey             string       `yaml:"api_key,omitempty"`
+	Models             []Model      `yaml:"models"`
+	DefaultModelLimits *ModelLimits `yaml:"default_model_limits,omitempty"`
+}
+
+// ModelNames 回傳候選模型名稱清單（不含 token metadata），供清單顯示與
+// 互動選單使用。
+func (p *Profile) ModelNames() []string {
+	names := make([]string, len(p.Models))
+	for i := range p.Models {
+		names[i] = p.Models[i].Name
+	}
+	return names
+}
+
+// FindModel 依名稱查找候選模型；找不到時回傳 nil。
+func (p *Profile) FindModel(name string) *Model {
+	for i := range p.Models {
+		if p.Models[i].Name == name {
+			return &p.Models[i]
+		}
+	}
+	return nil
 }
 
 // Config 是頂層設定結構，持有設定檔清單以及未指定設定檔時
@@ -58,10 +116,60 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("解析設定檔 %s: %w", path, err)
 	}
 	migrateLegacyDefaultModel(cfg, data)
+	for i := range cfg.Profiles {
+		if err := (&cfg.Profiles[i]).ValidateModels(); err != nil {
+			return nil, fmt.Errorf("設定檔 %s: %w", path, err)
+		}
+	}
 	if err := cfg.Telemetry.Validate(); err != nil {
 		return nil, fmt.Errorf("設定檔 %s: %w", path, err)
 	}
 	return cfg, nil
+}
+
+// ValidateModels 驗證 profile 的候選模型與 default_model_limits：
+// 拒絕空白模型名稱、同一 profile 內重複名稱，以及零或負數
+// context_window_tokens / max_output_tokens。錯誤訊息指出 profile、
+// 模型或欄位。context 與 output 之間不做跨欄位大小驗證。
+func (p *Profile) ValidateModels() error {
+	seen := make(map[string]struct{}, len(p.Models))
+	for i := range p.Models {
+		m := &p.Models[i]
+		if strings.TrimSpace(m.Name) == "" {
+			return fmt.Errorf("profile %q 的第 %d 個模型名稱不可為空", p.Name, i+1)
+		}
+		if _, dup := seen[m.Name]; dup {
+			return fmt.Errorf("profile %q 有重複的模型名稱 %q", p.Name, m.Name)
+		}
+		seen[m.Name] = struct{}{}
+		if err := validatePositiveTokens(p.Name, m.Name, m.ContextWindowTokens, "context_window_tokens"); err != nil {
+			return err
+		}
+		if err := validatePositiveTokens(p.Name, m.Name, m.MaxOutputTokens, "max_output_tokens"); err != nil {
+			return err
+		}
+	}
+	if p.DefaultModelLimits != nil {
+		if err := validatePositiveTokens(p.Name, "", p.DefaultModelLimits.ContextWindowTokens, "context_window_tokens"); err != nil {
+			return err
+		}
+		if err := validatePositiveTokens(p.Name, "", p.DefaultModelLimits.MaxOutputTokens, "max_output_tokens"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validatePositiveTokens 檢查可選的正整數 token 值；nil 直接通過。
+// modelName 非空時錯誤訊息同時指出模型與欄位，否則指出欄位。
+func validatePositiveTokens(profileName, modelName string, v *int64, field string) error {
+	if v != nil && *v <= 0 {
+		if modelName != "" {
+			return fmt.Errorf("profile %q 模型 %q 的 %s 必須為正整數，目前為 %d", profileName, modelName, field, *v)
+		}
+		return fmt.Errorf("profile %q 的 default_model_limits.%s 必須為正整數，目前為 %d", profileName, field, *v)
+	}
+	return nil
 }
 
 // migrateLegacyDefaultModel 將舊版含 default_model 欄位的 profile 遷移為
@@ -93,7 +201,7 @@ func migrateLegacyDefaultModel(cfg *Config, data []byte) {
 		p := &cfg.Profiles[i]
 		if len(p.Models) == 0 {
 			if dm, ok := byName[p.Name]; ok && dm != "" {
-				p.Models = []string{dm}
+				p.Models = []Model{{Name: dm}}
 			}
 		}
 	}

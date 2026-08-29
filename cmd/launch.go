@@ -19,6 +19,7 @@ const copilotBinary = "copilot"
 func newLaunchCmd() *cobra.Command {
 	var model, profileName, cfgPath, effort, subModel string
 	var yolo, dryRun bool
+	var contextTokens, maxOutputTokens int64
 	c := &cobra.Command{
 		Use:   "launch <target>",
 		Short: "以 BYOK profile 啟動 Copilot、Codex、Codex App、Claude 或 pi CLI（暫時注入環境變數）",
@@ -58,8 +59,26 @@ func newLaunchCmd() *cobra.Command {
 				fmt.Fprintln(cmd.ErrOrStderr(), "錯誤：", err)
 				return errExit
 			}
+			// Token 旗標驗證：必須在任何 API key 解析、可執行檔檢查或
+			// 子程序啟動之前完成。
+			if err := validatePositiveTokenFlag("--context-window-tokens", cmd.Flags().Changed("context-window-tokens"), contextTokens); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：%v\n", err)
+				return errExit
+			}
+			if err := validatePositiveTokenFlag("--max-output-tokens", cmd.Flags().Changed("max-output-tokens"), maxOutputTokens); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "錯誤：%v\n", err)
+				return errExit
+			}
 			extraArgs := buildExtraArgs(yolo, target, args[1:])
 			options := launchOptions{effort: effort, subModel: subModel, dryRun: dryRun}
+			if cmd.Flags().Changed("context-window-tokens") {
+				v := contextTokens
+				options.cliContextTokens = &v
+			}
+			if cmd.Flags().Changed("max-output-tokens") {
+				v := maxOutputTokens
+				options.cliMaxOutputTokens = &v
+			}
 			if dryRun {
 				return runLaunchDryRun(cfgPath, profileName, target, model, options, extraArgs, cmd.OutOrStdout(), cmd.ErrOrStderr())
 			}
@@ -90,6 +109,8 @@ func newLaunchCmd() *cobra.Command {
 	c.Flags().StringVar(&effort, "effort", "", "暫時指定目標工具的 reasoning effort")
 	c.Flags().StringVar(&subModel, "sub-model", "", "暫時指定 Claude subagent model（其他 target 忽略）")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "只輸出遮罩金鑰的等效命令，不啟動目標工具")
+	c.Flags().Int64Var(&contextTokens, "context-window-tokens", 0, "暫時指定模型的 Context Window token 數（正整數，逐欄位覆寫模型與 profile 預設）")
+	c.Flags().Int64Var(&maxOutputTokens, "max-output-tokens", 0, "暫時指定模型的最大輸出 token 數（正整數，逐欄位覆寫模型與 profile 預設）")
 	// 自訂 usage 模板：Usage → Targets → Flags → Examples。
 	c.SetUsageTemplate(`Usage:
   {{.UseLine}}
@@ -113,6 +134,80 @@ Examples:
 type launchOptions struct {
 	effort, subModel string
 	dryRun           bool
+	// cliContextTokens / cliMaxOutputTokens 為 launch 旗標提供的可選 token 值；
+	// nil 表示旗標未提供，由 resolveTokenLimits 依優先序解析。
+	cliContextTokens, cliMaxOutputTokens *int64
+}
+
+// tokenLimitSource 標識有效 token 值的解析來源，供 warning 與 dry-run 標示。
+type tokenLimitSource string
+
+const (
+	tokenSourceCLI            tokenLimitSource = "CLI flag"
+	tokenSourceModel          tokenLimitSource = "model"
+	tokenSourceProfileDefault tokenLimitSource = "profile default"
+)
+
+// resolvedTokenLimits 為逐欄位解析後的有效 token 限制，含來源標示。
+// nil 指標欄位表示未設定 → 不注入任何 token override。
+// normal launch 與 dry-run 共用此解析結果。
+type resolvedTokenLimits struct {
+	ContextWindow       *int64
+	ContextWindowSource tokenLimitSource
+	MaxOutput           *int64
+	MaxOutputSource     tokenLimitSource
+}
+
+// resolveTokenLimits 依固定優先序逐欄位解析 token 限制：
+// 明確提供的 launch 旗標 → 選定 Model 的欄位 → profile 的
+// default_model_limits 欄位 → 未設定（nil）。--model 對應陌生的模型名稱時，
+// 僅使用旗標與 profile 預設，不借用其他候選模型的限制。
+func resolveTokenLimits(profile *config.Profile, modelName string, cliContext, cliMaxOutput *int64) *resolvedTokenLimits {
+	limits := &resolvedTokenLimits{}
+
+	var selected *config.Model
+	for i := range profile.Models {
+		if profile.Models[i].Name == modelName {
+			selected = &profile.Models[i]
+			break
+		}
+	}
+
+	if cliContext != nil {
+		limits.ContextWindow = cliContext
+		limits.ContextWindowSource = tokenSourceCLI
+	} else if selected != nil && selected.ContextWindowTokens != nil {
+		limits.ContextWindow = selected.ContextWindowTokens
+		limits.ContextWindowSource = tokenSourceModel
+	} else if profile.DefaultModelLimits != nil && profile.DefaultModelLimits.ContextWindowTokens != nil {
+		limits.ContextWindow = profile.DefaultModelLimits.ContextWindowTokens
+		limits.ContextWindowSource = tokenSourceProfileDefault
+	}
+
+	if cliMaxOutput != nil {
+		limits.MaxOutput = cliMaxOutput
+		limits.MaxOutputSource = tokenSourceCLI
+	} else if selected != nil && selected.MaxOutputTokens != nil {
+		limits.MaxOutput = selected.MaxOutputTokens
+		limits.MaxOutputSource = tokenSourceModel
+	} else if profile.DefaultModelLimits != nil && profile.DefaultModelLimits.MaxOutputTokens != nil {
+		limits.MaxOutput = profile.DefaultModelLimits.MaxOutputTokens
+		limits.MaxOutputSource = tokenSourceProfileDefault
+	}
+
+	return limits
+}
+
+// validatePositiveTokenFlag 驗證 token 旗標：未提供（!changed）直接通過；
+// 已提供時必須為正 64-bit 整數。錯誤訊息指出旗標名稱。
+func validatePositiveTokenFlag(name string, changed bool, value int64) error {
+	if !changed {
+		return nil
+	}
+	if value <= 0 {
+		return fmt.Errorf("旗標 %s 必須為正整數，目前為 %d", name, value)
+	}
+	return nil
 }
 
 func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, stdout, stderr io.Writer, options ...launchOptions) error {
@@ -200,7 +295,8 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 	}
 
 	// 8. 以暫時的 BYOK 環境變數啟動 copilot（父程序環境不變）。
-	if err := runner.Launch(profile, resolvedModel, resolved, extraArgs, os.Stdin, stdout, stderr, cfg.Telemetry, opt.effort); err != nil {
+	limits := resolveTokenLimits(profile, resolvedModel, opt.cliContextTokens, opt.cliMaxOutputTokens)
+	if err := runner.Launch(profile, resolvedModel, toRunnerTokenLimits(limits), resolved, extraArgs, os.Stdin, stdout, stderr, cfg.Telemetry, opt.effort); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// copilot 以非零結束碼結束 — 靜默傳遞，不額外印出訊息。
 			return errExit
@@ -209,6 +305,31 @@ func runLaunchCopilot(cfgPath, profileName, model string, extraArgs []string, st
 		return errExit
 	}
 	return nil
+}
+
+// warnUnsupportedTokenLimits 對 target 不支援的有效 token 參數寫出 stderr
+// warning，指出 target、參數、忽略值與解析來源。ignored value 不會進入
+// runner；unset 時靜默；warning 不改變流程的 exit status。
+func warnUnsupportedTokenLimits(target string, limits *resolvedTokenLimits, stderr io.Writer) {
+	if limits == nil || limits.MaxOutput == nil {
+		return
+	}
+	if targetSupportsMaxOutputTokens(target) {
+		return
+	}
+	fmt.Fprintf(stderr, "警告：%s 不支援 %s=%d（來源：%s）；已忽略此值並繼續啟動。\n",
+		target, "max_output_tokens", *limits.MaxOutput, limits.MaxOutputSource)
+}
+
+// targetSupportsMaxOutputTokens 回傳 target 是否有 max_output_tokens 的
+// 官方支援介面。Codex 與 Codex App 沒有 → 忽略並提示；其餘 target 支援。
+func targetSupportsMaxOutputTokens(target string) bool {
+	switch target {
+	case "codex", "codex-app":
+		return false
+	default:
+		return true
+	}
 }
 
 // resolveProfileForLaunch 封裝 runLaunchCodex 步驟 1–6 的共用邏輯：
@@ -302,6 +423,14 @@ func availableProfileNames(profiles []config.Profile) []string {
 	return names
 }
 
+// toRunnerTokenLimits 將 cmd 層解析結果轉為 runner 契約的 TokenLimits。
+func toRunnerTokenLimits(l *resolvedTokenLimits) *runner.TokenLimits {
+	if l == nil {
+		return nil
+	}
+	return &runner.TokenLimits{ContextWindowTokens: l.ContextWindow, MaxOutputTokens: l.MaxOutput}
+}
+
 // stdinTerminalCheck 可被測試替換，判斷給定 reader 是否為終端機。
 // 預設為 isStdinTerminal（僅 *os.File 以 isTerminal 判定 fd）。
 var stdinTerminalCheck = isStdinTerminal
@@ -327,7 +456,7 @@ func resolveModelForLaunch(profile *config.Profile, modelFlag string, stdin io.R
 		fmt.Fprintf(stderr, "提示：執行 `byok config set-models %s --model <model>` 設定候選模型\n", profile.Name)
 		return "", errExit
 	case 1:
-		return profile.Models[0], nil
+		return profile.Models[0].Name, nil
 	default:
 		// 多個候選：需互動選單，故 stdin 必須為終端機。
 		if !stdinTerminalCheck(stdin) {
@@ -335,7 +464,7 @@ func resolveModelForLaunch(profile *config.Profile, modelFlag string, stdin io.R
 			fmt.Fprintf(stderr, "提示：請以 --model 旗標明確指定模型，或執行 `byok config set-models %s --model <model>` 縮減為單一候選\n", profile.Name)
 			return "", errExit
 		}
-		selected, err := config.SelectModel(profile.Models, stdin, stdout, func(int) bool { return true })
+		selected, err := config.SelectModel(profile.ModelNames(), stdin, stdout, func(int) bool { return true })
 		if err != nil {
 			if errors.Is(err, config.ErrSelectionCancelled) {
 				// 使用者主動取消（Ctrl-C/Esc）：簡潔提示後以非零結束碼退出。

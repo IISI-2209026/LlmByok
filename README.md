@@ -7,6 +7,7 @@
 - **以設定檔（profile）管理金鑰** — 每個 profile 各自儲存 Provider、API Base、API Key 與 Default Model 四個設定值。
 - **一行指令啟動** — `byok launch copilot --model gemma4` 即可用選定 profile 的金鑰啟動 Copilot，並可選擇性地覆寫模型。同樣支援 `byok launch codex`、`byok launch codex-app`（Codex 桌面版）、`byok launch claude` 與 `byok launch pi`。
 - **暫時性的環境注入** — 環境變數只注入到目標工具子行程，永遠不會寫入系統環境變數或 Shell 設定檔。
+- **模型 token 上限宣告與覆寫** — profile 可設定 `default_model_limits` 與個別模型的 `context_window_tokens` / `max_output_tokens`，啟動時依優先序注入各目標工具的對應環境變數或旗標，並可用 `--context-window-tokens` / `--max-output-tokens` 一次性覆寫（詳見下方「模型 token 上限」）。
 - **支援五個目標工具** — Copilot CLI、Codex CLI、Claude Code 與 pi CLI，皆使用同一套 BYOK profile 機制。
 - **第一版** 僅支援 OpenAI 相容端點（provider 類型為 `openai`）。
 
@@ -183,9 +184,56 @@ default_profile: openai-official
 | `provider` | provider 類型。第一版僅接受 `openai`。                                          |
 | `api_base` | OpenAI 相容端點的 Base URL（例如 `https://api.openai.com/v1`）。               |
 | `api_key`  | API 金鑰字串。本機伺服器（如 Ollama）不需金鑰時用 `""`。                          |
-| `models`   | 候選模型清單。`byok launch <target>` 在未帶 `--model` 時依此清單決定模型：僅一個則直接使用；多個且 stdin 為終端機時顯示上下鍵互動選單；多個但非終端機時報錯（請改用 `--model`）；為空時報錯（請先以 `byok config set-models` 設定）。模型依目標工具注入為對應環境變數（Copilot: `COPILOT_MODEL`、Codex: `--config model=`、Claude: `ANTHROPIC_MODEL`；Pi: `--model` CLI 旗標）。若 `--model` 有指定則一律以 `--model` 為準。 |
+| `models`   | 候選模型清單。`byok launch <target>` 在未帶 `--model` 時依此清單決定模型：僅一個則直接使用；多個且 stdin 為終端機時顯示上下鍵互動選單；多個但非終端機時報錯（請改用 `--model`）；為空時報錯（請先以 `byok config set-models` 設定）。模型依目標工具注入為對應環境變數（Copilot: `COPILOT_MODEL`、Codex: `--config model=`、Claude: `ANTHROPIC_MODEL`；Pi: `--model` CLI 旗標）。若 `--model` 有指定則一律以 `--model` 為準。項目支援兩種寫法：純字串（如 `- gpt-4o`）或 mapping（如 `- name: gpt-5.4`，可附 `context_window_tokens:` / `max_output_tokens:`），詳見下方「模型 token 上限」。 |
+| `default_model_limits` | 選填。profile 層級的模型 token 上限預設。詳見下方「模型 token 上限」。 |
 
 > **舊設定檔相容性**：若你的設定檔仍使用舊版單一 `default_model` 欄位，`byok` 載入時會自動將其遷移為單元素 `models` 清單；下次寫入時舊欄位即不再出現。
+
+### 模型 token 上限（`default_model_limits` 與模型層級設定）
+
+設定檔可為模型宣告 token 上限，`byok launch` 會依優先序將生效值注入目標工具（見「使用說明 → `byok launch <target>`」的一次性 token 上限覆寫與支援矩陣）。
+
+- **profile 層級 `default_model_limits`（選填）** — 該 profile 中所有模型的預設上限，包含兩個**選填**欄位：
+  - `context_window_tokens`：context window token 上限（正的 64 位元整數）。
+  - `max_output_tokens`：單次回應最大輸出 token 上限（正的 64 位元整數）。
+
+  未設定的欄位即為 nil（不會注入對應覆寫）。
+- **`models` 項目支援兩種寫法**：
+  - **純字串（scalar，舊式）**：`- gpt-4o`，無個別上限。
+  - **mapping（新式）**：`- name: gpt-5.4`，並可附上 `context_window_tokens:` / `max_output_tokens:`（同樣為正的 64 位元整數、皆選填）。
+
+完整範例（單一 profile 同時包含 `default_model_limits`、完整設定、部分設定與舊式 scalar 三種模型項目）：
+
+```yaml
+profiles:
+  - name: gpt5-direct
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-your-openai-key-here
+    default_model_limits:        # profile 層級預設（兩個欄位皆選填）
+      context_window_tokens: 200000
+      max_output_tokens: 32000
+    models:
+      - name: gpt-5.4            # mapping：完整設定（context + output）
+        context_window_tokens: 1000000
+        max_output_tokens: 128000
+      - name: o4-mini            # mapping：部分設定（只給 max_output_tokens）
+        max_output_tokens: 64000
+      - gpt-4o                   # 舊式 scalar：未設個別上限，沿用 default_model_limits
+default_profile: gpt5-direct
+```
+
+> **向下相容**：只使用純字串 `models` 的既有設定檔不需任何修改即可繼續使用。
+>
+> **降級提醒**：`default_model_limits` 與 mapping 形式的 `models` 項目只有較新版的 `byok` 才能解析。若要改回**較舊版本**的 `byok` 二進位，請先從設定檔移除 `default_model_limits`，並把 mapping 項目改寫回純字串模型名稱（舊版無法解析 mapping 項目）。API 金鑰與 keychain 內容不受影響，無需任何遷移。
+
+**設定檔驗證**：載入設定檔時，`byok` 會拒絕以下情況並印出錯誤（訊息會標明所屬的 profile、模型與欄位名稱）後以非零結束碼退出：
+
+- 同一 profile 內有空字串的模型名稱。
+- 同一 profile 內出現重複的模型名稱（scalar 與 mapping 混用時同樣以名稱判斷重複）。
+- 任一模型項目或 `default_model_limits` 的 `context_window_tokens` / `max_output_tokens` 為 0 或負數。
+
+context 與 output 兩個欄位之間**沒有**大小先後規則（例如 `max_output_tokens` 可以大於 `context_window_tokens`），`byok` 不做跨欄位檢查。
 
 ### 安全性提醒
 
@@ -226,6 +274,8 @@ default_profile: openai-official
 | `--profile` | 依名稱選取 profile。未指定則使用 `default_profile`。 |
 | `--config`  | 覆寫設定檔路徑（預設 `~/.byok/config.yaml`）。        |
 | `-y`, `--yolo` | 啟用目標工具的 yolo 模式：copilot/codex/codex-app 附加 `--yolo`，claude 附加 `--dangerously-skip-permissions`，pi 附加 `--approve`。 |
+| `--context-window-tokens` | 覆寫 context window token 上限（正整數；僅這次啟動生效，不寫入設定檔）。詳見下方「一次性 token 上限覆寫」。 |
+| `--max-output-tokens`     | 覆寫單次回應最大輸出 token 上限（正整數；僅這次啟動生效，不寫入設定檔）。詳見下方「一次性 token 上限覆寫」。 |
 | `--`        | 之後的參數原樣透傳給目標工具（不解析、不驗證）。     |
 
 **範例：**
@@ -291,6 +341,50 @@ byok launch codex --model gpt-5 --effort high --dry-run
 Windows 輸出 PowerShell，其他平台輸出 POSIX shell；所有金鑰位置固定輸出為已引用的 `***`，
 複製命令前請先替換為實際金鑰。pi 的輸出會包含建立 masked `models.json`、執行與清理暫存目錄的完整片段。
 
+#### 一次性 token 上限覆寫（`--context-window-tokens` / `--max-output-tokens`）
+
+`byok launch <target>` 另支援這兩個選填旗標，為**這一次啟動**覆寫模型 token 上限（不寫入設定檔、不改變 profile）：
+
+```bash
+byok launch copilot --context-window-tokens 1000000 --max-output-tokens 128000
+byok launch claude --context-window-tokens 200000
+byok launch pi --model my-model --max-output-tokens 64000
+```
+
+兩個旗標的值都必須是**正整數**；傳入 0、負數或非整數時，`byok` 會在解析 API 金鑰與檢查目標工具是否安裝**之前**印出錯誤並以 exit 1 結束。
+
+**生效優先序（每個欄位獨立解析）** — context 與 output 兩個欄位各自依以下順序取值，互不影響：
+
+1. CLI 旗標（`--context-window-tokens` / `--max-output-tokens`）
+2. 所選模型的對應欄位（`--model` 指定且命中 profile `models` 清單時，使用該模型的欄位；未帶 `--model` 時為從清單選出的模型）
+3. profile 的 `default_model_limits` 對應欄位
+4. 未設定
+
+四層都未命中即為「未設定」，此時 `byok` 對該欄位**不注入任何 token 覆寫**（不加旗標、不設環境變數）。若 `--model` 指定的名稱不在 profile 的 `models` 清單中，則只會從 CLI 旗標與 profile 的 `default_model_limits` 推導上限，**不會**借用其他模型項目的設定。
+
+**各 target 對應方式（token 上限支援矩陣）：**
+
+| Target      | Context window 覆寫                                                           | Max output tokens 覆寫 |
+| ----------- | ----------------------------------------------------------------------------- | ---------------------- |
+| `copilot`   | 環境變數 `COPILOT_PROVIDER_MAX_PROMPT_TOKENS`                                 | 環境變數 `COPILOT_PROVIDER_MAX_OUTPUT_TOKENS` |
+| `codex`     | `--config model_context_window=<值>`                                          | 不支援（印警告後繼續） |
+| `codex-app` | 與 `codex` 相同（`--config model_context_window=<值>`；`app` 仍為第一個參數） | 不支援（印警告後繼續） |
+| `claude`    | 環境變數 `CLAUDE_CODE_MAX_CONTEXT_TOKENS`                                     | 環境變數 `CLAUDE_CODE_MAX_OUTPUT_TOKENS` |
+| `pi`        | 臨時 `models.json` 的 `providers.openai.modelOverrides.<model>.contextWindow` | 同一路徑的 `.maxTokens` |
+
+**語義注意事項：**
+
+- **Copilot** — `COPILOT_PROVIDER_MAX_PROMPT_TOKENS` 的官方語義是「maximum prompt tokens」；`byok` 將通用的 context 值**直接**映射進去，**不會**再自行扣除 max output tokens。
+- **Codex / Codex App** — 不支援 max output tokens。若該欄位有生效值，`byok` 會向 stderr 印出警告（標明 target、參數、值與其來源）後照常繼續啟動。
+- **Claude** — 模型名稱**原樣傳遞**；`byok` 不會自動附加 `[1m]` extended-context 後綴，需要 extended context 的使用者請自行在模型名稱中包含官方後綴。
+- **Pi** — 除 `models.json` 的 `modelOverrides` 外，`byok` 會另寫一份臨時 `settings.json`，將 `compaction.reserveTokens` 設為生效的 max output tokens（作為回應餘裕的推導值），這**不是**可供使用者調整的 compaction 門檻設定。
+
+**限制：**
+
+- 這些值只作用於「向下游 target 呈現／宣告的容量」，**不會**放大後端模型真實的能力（gateway 端可能夾住數值或直接回錯）。
+- 這**不是**跨 target 統一的 compaction 門檻控制。
+- pi 的臨時 `settings.json` 與暫存目錄會於啟動結束後一併移除；`byok` 一律不修改任何使用者設定檔。
+
 ### `byok config add <profile name>`
 
 新增一個 profile 到設定檔。若檔案不存在會自動建立。若目前沒有設定 `default_profile`，新加入的 profile 會自動設為預設。若已有同名 profile 則會報錯且不修改檔案。profile 名稱為第一位置參數；候選模型由 `byok config set-models` 維護，`add` 不設定模型。
@@ -355,6 +449,15 @@ byok config update openai-official --api-key sk-new-key
 
 設定指定 profile 的候選模型清單，**整批覆寫**原有清單。profile 名稱為第一位置參數。可重複使用 `--model` 指定多個候選模型；未提供 `--model` 且 stdin 為終端機時進入互動模式，逐行輸入模型識別碼直至空行結束。profile 不存在時報錯且不修改檔案；結果為空清單時報錯。此指令為 `byok config` 的子指令。
 
+**token 上限語義**：`set-models` 以模型**名稱**整批覆寫清單，各模型的 `context_window_tokens` / `max_output_tokens` 遵循以下規則：
+
+- 新舊清單皆存在的同名模型：**保留**各自原有的 token 上限。
+- 新出現的名稱：從「無上限」開始。
+- 被移除的名稱：連同其 token 上限一併消失。
+- profile 層級的 `default_model_limits`：不受 `set-models` 影響。
+
+`byok config list` 與 `launch` 的互動模型選單皆只顯示模型名稱，不顯示各模型的 token 上限。
+
 **旗標：**
 
 | 旗標             | 說明                                       |
@@ -375,7 +478,7 @@ byok config set-models openai-official
 
 ### `byok config list`
 
-列出設定檔中所有 profile，包含每個 profile 的候選 `models` 清單（逗號分隔）。API 金鑰會遮罩：只顯示前 4 與後 4 個字元，中間以 `...` 連接；空金鑰顯示為空。
+列出設定檔中所有 profile，包含每個 profile 的候選 `models` 清單（逗號分隔；僅顯示模型名稱，不含各模型的 token 上限）。API 金鑰會遮罩：只顯示前 4 與後 4 個字元，中間以 `...` 連接；空金鑰顯示為空。
 
 **旗標：**
 

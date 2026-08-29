@@ -159,3 +159,108 @@ func TestLaunchCodexApp_ConfigArgsContent(t *testing.T) {
 		}
 	}
 }
+
+// TestLaunchCodexApp_ContextWindowFlagMapsAfterApp 驗證 cmd dispatch 將有效
+// context 傳入 runner：app 仍為第一個參數，model_context_window pair 緊接
+// env_key pair 之後，透傳參數順序不變。
+func TestLaunchCodexApp_ContextWindowFlagMapsAfterApp(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    models: [gpt-4o]\ndefault_profile: openai-official\n")
+
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	var stdout, stderr bytes.Buffer
+	extraArgs := []string{"--yolo", "exec"}
+	opt := launchOptions{cliContextTokens: ptrToken(272000)}
+
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", filepath.Join(t.TempDir(), "env.txt"))
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+	if err := runLaunchCodexApp(path, "", "gemma4", extraArgs, &stdout, &stderr, opt); err != nil {
+		t.Fatalf("runLaunchCodexApp returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	argsData, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args: %v", err)
+	}
+	got := splitNonEmpty(string(argsData))
+	if len(got) == 0 || got[0] != "app" {
+		t.Fatalf("first arg = %v, want first %q", got, "app")
+	}
+	envKeyIdx := indexOf(got, `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`)
+	ctxIdx := indexOf(got, "model_context_window=272000")
+	if envKeyIdx < 0 || ctxIdx < 0 {
+		t.Fatalf("child args missing required pairs (env_key=%d ctx=%d): %v", envKeyIdx, ctxIdx, got)
+	}
+	if got[ctxIdx-1] != "--config" {
+		t.Errorf("context value at %d must be paired with --config, got %q", ctxIdx, got[ctxIdx-1])
+	}
+	if !(envKeyIdx < ctxIdx) {
+		t.Errorf("context pair must follow env_key pair (env_key=%d ctx=%d): %v", envKeyIdx, ctxIdx, got)
+	}
+	// 既有參數順序不變：app + 5 對 --config（索引 1–10）+ context pair + 透傳。
+	yoloIdx := indexOf(got, "--yolo")
+	if yoloIdx != 13 {
+		t.Errorf("--yolo index = %d, want 13 (app + 5 pairs + context pair): %v", yoloIdx, got)
+	}
+	if got[len(got)-1] != "exec" {
+		t.Errorf("last passthrough arg = %q, want \"exec\"", got[len(got)-1])
+	}
+}
+
+// TestLaunchCodexApp_OutputOnlyLimitsNoContextArg 驗證僅有效 max_output_tokens
+// 時（profile default）：不注入 model_context_window、無 output override，
+// 命令列維持 app + 5 對 --config + extraArgs。
+func TestLaunchCodexApp_OutputOnlyLimitsNoContextArg(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: openai-official
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-xxxx
+    default_model_limits:
+      max_output_tokens: 65536
+    models: [gpt-4o]
+default_profile: openai-official
+`)
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", filepath.Join(t.TempDir(), "env.txt"))
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	var stdout, stderr bytes.Buffer
+	extraArgs := []string{"--yolo", "exec"}
+	if err := runLaunchCodexApp(path, "", "", extraArgs, &stdout, &stderr); err != nil {
+		t.Fatalf("runLaunchCodexApp returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	argsData, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args: %v", err)
+	}
+	got := splitNonEmpty(string(argsData))
+	// app + 5 對 --config（共 10 元素）+ --yolo + exec = 13。
+	if len(got) != 13 {
+		t.Fatalf("child args len = %d, want 13: %v", len(got), got)
+	}
+	if got[0] != "app" {
+		t.Errorf("first arg = %q, want %q", got[0], "app")
+	}
+	if yoloIdx := indexOf(got, "--yolo"); yoloIdx != 11 {
+		t.Errorf("--yolo index = %d, want 11 (context unset): %v", yoloIdx, got)
+	}
+	for _, a := range got {
+		if strings.Contains(a, "model_context_window") {
+			t.Errorf("output-only limits must not produce model_context_window, got %v", got)
+		}
+		if strings.Contains(a, "max_output") {
+			t.Errorf("no output override may reach the child, got %q in %v", a, got)
+		}
+	}
+}

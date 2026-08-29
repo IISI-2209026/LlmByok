@@ -16,14 +16,14 @@ func TestBuildCopilotArgsWithEffort(t *testing.T) {
 }
 
 func TestBuildCodexArgsWithEffort(t *testing.T) {
-	_, got := BuildCodexArgs(&config.Profile{}, "gpt-5", nil, "high")
+	_, got := BuildCodexArgs(&config.Profile{}, "gpt-5", nil, nil, "high")
 	if got[len(got)-2] != "--config" || got[len(got)-1] != `model_reasoning_effort="high"` {
 		t.Fatalf("got %#v", got)
 	}
 }
 
 func TestBuildClaudeEnvWithEffortAndSubModel(t *testing.T) {
-	env := BuildClaudeEnv(&config.Profile{}, "model", nil, "high", "claude-haiku-4-5")
+	env := BuildClaudeEnv(&config.Profile{}, "model", nil, nil, "high", "claude-haiku-4-5")
 	for _, want := range []string{"CLAUDE_CODE_ALWAYS_ENABLE_EFFORT=1", "CLAUDE_CODE_EFFORT_LEVEL=high", "CLAUDE_CODE_SUBAGENT_MODEL=claude-haiku-4-5"} {
 		found := false
 		for _, entry := range env {

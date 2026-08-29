@@ -138,12 +138,13 @@ func TestRunLaunchClaude_EnvInjected(t *testing.T) {
 	if got := envLookupOSIn(childEnv, "ANTHROPIC_API_KEY"); got != "sk-claude-test" {
 		t.Errorf("child ANTHROPIC_API_KEY = %q, want sk-claude-test", got)
 	}
-	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5[1m]" {
-		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-sonnet-4-5[1m]", got)
+	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-5" {
+		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-sonnet-4-5 (verbatim, no [1m])", got)
 	}
 }
 
-// TestRunLaunchClaude_ModelOverride 驗證 --model 覆寫 default_model。
+// TestRunLaunchClaude_ModelOverride 驗證 --model 覆寫 default_model，
+// 模型字串原樣傳遞（不自動附加 [1m]）。
 func TestRunLaunchClaude_ModelOverride(t *testing.T) {
 	keyring.MockInit()
 	path := filepath.Join(t.TempDir(), "config.yaml")
@@ -164,8 +165,8 @@ func TestRunLaunchClaude_ModelOverride(t *testing.T) {
 
 	envData, _ := os.ReadFile(outFile)
 	childEnv := strings.Split(string(envData), "\n")
-	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-opus-4-1[1m]" {
-		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-opus-4-1[1m]", got)
+	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "claude-opus-4-1" {
+		t.Errorf("child ANTHROPIC_MODEL = %q, want claude-opus-4-1 (verbatim, no [1m])", got)
 	}
 }
 
@@ -201,6 +202,90 @@ func TestRunLaunchClaude_ExtraArgs(t *testing.T) {
 			t.Errorf("child arg[%d] = %q, want %q", i, got[i], w)
 		}
 	}
+}
+
+// TestRunLaunchClaude_TokenLimitsAndPlainModelInjected 以 stub 驗證端到端：
+// profile default_model_limits 的有效 token 限制以兩個 CLAUDE_CODE_* 變數抵達
+// 子程序環境（含父環境陳舊值去重）、模型名稱原樣傳遞（不自動附加 [1m]）、
+// 父程序環境與任何 Claude 設定檔皆不被寫入。
+func TestRunLaunchClaude_TokenLimitsAndPlainModelInjected(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-claude-tok\n    models: [gpt-4o]\n    default_model_limits:\n      context_window_tokens: 272000\n      max_output_tokens: 16384\ndefault_profile: openai-official\n")
+
+	stubExe := buildStubForClaude(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	// 將 HOME 導向暫存目錄，以回歸驗證 byok 不寫入任何 Claude 設定檔。
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	// 父環境預先存在陳舊值，驗證去重與父環境不變。
+	t.Setenv("BYOK_PARENT_MARKER", "before")
+	t.Setenv("CLAUDE_CODE_MAX_CONTEXT_TOKENS", "999")
+
+	var stdout, stderr bytes.Buffer
+	if err := runLaunchClaude(path, "", "", nil, &stdout, &stderr); err != nil {
+		t.Fatalf("runLaunchClaude failed: %v (stderr=%s)", err, stderr.String())
+	}
+
+	// 父程序環境必須保持不變（token 變數僅抵達子程序）。
+	if got := envLookupOS("BYOK_PARENT_MARKER"); got != "before" {
+		t.Errorf("parent BYOK_PARENT_MARKER = %q, want %q (parent env must be untouched)", got, "before")
+	}
+	if got := envLookupOS("CLAUDE_CODE_MAX_CONTEXT_TOKENS"); got != "999" {
+		t.Errorf("parent CLAUDE_CODE_MAX_CONTEXT_TOKENS = %q, want %q (parent env must be untouched)", got, "999")
+	}
+	if got := envLookupOS("CLAUDE_CODE_MAX_OUTPUT_TOKENS"); got != "" {
+		t.Errorf("parent CLAUDE_CODE_MAX_OUTPUT_TOKENS leaked = %q (must be empty)", got)
+	}
+
+	// byok 不得寫入任何 Claude 設定檔。
+	if _, err := os.Stat(filepath.Join(home, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("~/.claude must not be created by byok, err = %v", err)
+	}
+
+	envData, _ := os.ReadFile(outFile)
+	childEnv := strings.Split(string(envData), "\n")
+
+	// 模型名稱原樣傳遞（單一候選 gpt-4o，不自動附加 [1m]）。
+	if got := envLookupOSIn(childEnv, "ANTHROPIC_MODEL"); got != "gpt-4o" {
+		t.Errorf("child ANTHROPIC_MODEL = %q, want gpt-4o (verbatim, no [1m])", got)
+	}
+	// 有效 token 限制以兩個變數抵達子程序（十進位字串，恰一個項目）。
+	if got := envLookupOSIn(childEnv, "CLAUDE_CODE_MAX_CONTEXT_TOKENS"); got != "272000" {
+		t.Errorf("child CLAUDE_CODE_MAX_CONTEXT_TOKENS = %q, want 272000", got)
+	}
+	if got := envLookupOSIn(childEnv, "CLAUDE_CODE_MAX_OUTPUT_TOKENS"); got != "16384" {
+		t.Errorf("child CLAUDE_CODE_MAX_OUTPUT_TOKENS = %q, want 16384", got)
+	}
+	count := 0
+	for _, e := range childEnv {
+		if strings.HasPrefix(e, "CLAUDE_CODE_MAX_CONTEXT_TOKENS=") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 child CLAUDE_CODE_MAX_CONTEXT_TOKENS entry, got %d", count)
+	}
+	if containsLine(string(envData), "CLAUDE_CODE_MAX_CONTEXT_TOKENS=999") {
+		t.Errorf("stale parent value 999 must not reach child env: %s", envData)
+	}
+}
+
+// containsLine 判斷資料中（以行為單位）是否包含指定完整行。
+func containsLine(data, line string) bool {
+	for _, l := range strings.Split(data, "\n") {
+		if l == line {
+			return true
+		}
+	}
+	return false
 }
 
 // buildStubForClaude 編譯 testdata stub 至暫存目錄，命名為 claude

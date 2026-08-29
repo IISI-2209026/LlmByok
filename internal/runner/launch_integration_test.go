@@ -30,15 +30,15 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 	parentBefore := snapshotEnv()
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey: "sk-test-integration",
-		Models: []string{"gpt-4o"},
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test-integration",
+		Models:   []config.Model{{Name: "gpt-4o"}},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gemma4", stub, nil, nil, &stdout, &stderr, nil); err != nil {
+	if err := Launch(profile, "gemma4", nil, stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -60,9 +60,9 @@ func TestLaunchIntegration_ByokVarsInjected(t *testing.T) {
 
 	want := map[string]string{
 		"COPILOT_PROVIDER_BASE_URL": "https://api.openai.com/v1",
-		"COPILOT_PROVIDER_TYPE":      "openai",
-		"COPILOT_PROVIDER_API_KEY":   "sk-test-integration",
-		"COPILOT_MODEL":              "gemma4",
+		"COPILOT_PROVIDER_TYPE":     "openai",
+		"COPILOT_PROVIDER_API_KEY":  "sk-test-integration",
+		"COPILOT_MODEL":             "gemma4",
 	}
 	for key, expected := range want {
 		got := envLookup(childEnv, key)
@@ -92,17 +92,17 @@ func TestLaunchIntegration_ExtraArgsForwarded(t *testing.T) {
 	parentBefore := snapshotEnv()
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey: "sk-test-integration",
-		Models: []string{"gpt-4o"},
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test-integration",
+		Models:   []config.Model{{Name: "gpt-4o"}},
 	}
 
 	extraArgs := []string{"--yolo", "--continue", "--model", "x"}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gemma4", stub, extraArgs, nil, &stdout, &stderr, nil); err != nil {
+	if err := Launch(profile, "gemma4", nil, stub, extraArgs, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -148,15 +148,15 @@ func TestLaunchIntegration_NoExtraArgs(t *testing.T) {
 	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey: "sk-test-integration",
-		Models: []string{"gpt-4o"},
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-test-integration",
+		Models:   []config.Model{{Name: "gpt-4o"}},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := Launch(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr, nil); err != nil {
+	if err := Launch(profile, "gpt-4o", nil, stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("Launch failed: %v (stderr=%s)", err, stderr.String())
 	}
 
