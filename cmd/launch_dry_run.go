@@ -48,8 +48,11 @@ func resolveProfileMetadata(cfgPath, profileName string, stderr io.Writer) (*con
 	return nil, nil, errExit
 }
 
+// dryRunIsWindows 為暫時性測試 hook（驗證後還原）。
+var dryRunIsWindows = runtime.GOOS == "windows"
+
 func shellQuote(value string) string {
-	if runtime.GOOS == "windows" {
+	if dryRunIsWindows {
 		return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
@@ -194,46 +197,47 @@ func renderLaunchDryRun(target string, profile *config.Profile, model string, op
 		args = append(args, shellQuote(arg))
 	}
 	join := func(values []string) string { return strings.Join(values, " ") }
-	if runtime.GOOS == "windows" {
+	if dryRunIsWindows {
 		set := func(name, value string) string { return "$env:" + name + "=" + shellQuote(value) }
-		prefix := []string{}
+		// PowerShell 同一行多個陳述式須以 ";" 隔開：env 設定彼此以 "; " 串接，
+		// 最後再接上目標命令與其參數（命令與參數之間仍以空格串接）。
+		var envs, cmdParts []string
 		switch target {
 		case "copilot":
-			prefix = []string{set("COPILOT_PROVIDER_BASE_URL", profile.APIBase), set("COPILOT_PROVIDER_TYPE", "openai"), set("COPILOT_PROVIDER_API_KEY", "***"), set("COPILOT_MODEL", model)}
-			prefix = append(prefix, dryRunTokenEnvs("copilot", limits, true)...)
-			prefix = append(prefix, dryRunTelemetryEnvs("copilot", telemetry, true)...)
+			envs = append(envs, set("COPILOT_PROVIDER_BASE_URL", profile.APIBase), set("COPILOT_PROVIDER_TYPE", "openai"), set("COPILOT_PROVIDER_API_KEY", "***"), set("COPILOT_MODEL", model))
+			envs = append(envs, dryRunTokenEnvs("copilot", limits, true)...)
+			envs = append(envs, dryRunTelemetryEnvs("copilot", telemetry, true)...)
+			cmdParts = append(cmdParts, "copilot")
 			if opt.effort != "" {
-				prefix = append(prefix, "copilot", "--reasoning-effort", shellQuote(opt.effort))
-			} else {
-				prefix = append(prefix, "copilot")
+				cmdParts = append(cmdParts, "--reasoning-effort", shellQuote(opt.effort))
 			}
 		case "codex", "codex-app":
-			prefix = []string{set("BYOK_CODEX_API_KEY", "***")}
-			prefix = append(prefix, dryRunTelemetryEnvs(target, telemetry, true)...)
+			envs = append(envs, set("BYOK_CODEX_API_KEY", "***"))
+			envs = append(envs, dryRunTelemetryEnvs(target, telemetry, true)...)
 			if target == "codex-app" {
-				prefix = append(prefix, "codex", "app")
+				cmdParts = append(cmdParts, "codex", "app")
 			} else {
-				prefix = append(prefix, "codex")
+				cmdParts = append(cmdParts, "codex")
 			}
-			prefix = append(prefix, "--config", shellQuote(`model="`+model+`"`), "--config", shellQuote(`model_provider="byok"`), "--config", shellQuote(`model_providers.byok.base_url="`+profile.APIBase+`"`), "--config", shellQuote(`model_providers.byok.env_key="BYOK_CODEX_API_KEY"`))
+			cmdParts = append(cmdParts, "--config", shellQuote(`model="`+model+`"`), "--config", shellQuote(`model_provider="byok"`), "--config", shellQuote(`model_providers.byok.base_url="`+profile.APIBase+`"`), "--config", shellQuote(`model_providers.byok.env_key="BYOK_CODEX_API_KEY"`))
 			if limits != nil && limits.ContextWindow != nil {
-				prefix = append(prefix, "--config", shellQuote("model_context_window="+strconv.FormatInt(*limits.ContextWindow, 10)))
+				cmdParts = append(cmdParts, "--config", shellQuote("model_context_window="+strconv.FormatInt(*limits.ContextWindow, 10)))
 			}
 			if opt.effort != "" {
-				prefix = append(prefix, "--config", shellQuote(`model_reasoning_effort="`+opt.effort+`"`))
+				cmdParts = append(cmdParts, "--config", shellQuote(`model_reasoning_effort="`+opt.effort+`"`))
 			}
-			prefix = append(prefix, dryRunTelemetryCodexArgs(telemetry, true)...)
+			cmdParts = append(cmdParts, dryRunTelemetryCodexArgs(telemetry, true)...)
 		case "claude":
-			prefix = []string{set("ANTHROPIC_BASE_URL", profile.APIBase), set("ANTHROPIC_API_KEY", "***"), set("ANTHROPIC_MODEL", model)}
-			prefix = append(prefix, dryRunTokenEnvs("claude", limits, true)...)
+			envs = append(envs, set("ANTHROPIC_BASE_URL", profile.APIBase), set("ANTHROPIC_API_KEY", "***"), set("ANTHROPIC_MODEL", model))
+			envs = append(envs, dryRunTokenEnvs("claude", limits, true)...)
 			if opt.effort != "" {
-				prefix = append(prefix, set("CLAUDE_CODE_ALWAYS_ENABLE_EFFORT", "1"), set("CLAUDE_CODE_EFFORT_LEVEL", opt.effort))
+				envs = append(envs, set("CLAUDE_CODE_ALWAYS_ENABLE_EFFORT", "1"), set("CLAUDE_CODE_EFFORT_LEVEL", opt.effort))
 			}
 			if opt.subModel != "" {
-				prefix = append(prefix, set("CLAUDE_CODE_SUBAGENT_MODEL", opt.subModel))
+				envs = append(envs, set("CLAUDE_CODE_SUBAGENT_MODEL", opt.subModel))
 			}
-			prefix = append(prefix, dryRunTelemetryEnvs("claude", telemetry, true)...)
-			prefix = append(prefix, "claude")
+			envs = append(envs, dryRunTelemetryEnvs("claude", telemetry, true)...)
+			cmdParts = append(cmdParts, "claude")
 		case "pi":
 			piTelEnvs := dryRunTelemetryEnvs("pi", telemetry, true)
 			piTelStr := ""
@@ -247,7 +251,11 @@ func renderLaunchDryRun(target string, profile *config.Profile, model string, op
 				return ""
 			}() + " " + join(args) + "\n} finally { Remove-Item -Recurse -Force $tmp }"
 		}
-		return join(append(prefix, args...))
+		cmdParts = append(cmdParts, args...)
+		if len(envs) == 0 {
+			return join(cmdParts)
+		}
+		return strings.Join(envs, "; ") + "; " + join(cmdParts)
 	}
 	prefix := []string{}
 	switch target {
