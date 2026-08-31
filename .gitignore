@@ -26,3 +26,5 @@ go.work.sum
 # 注意：不忽略 README/範本；以下僅忽略使用者實際設定檔
 config.yaml
 config.*.local.yaml
+
+.DS_Store
