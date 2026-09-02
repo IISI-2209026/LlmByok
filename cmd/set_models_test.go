@@ -18,7 +18,7 @@ func TestSetModels_MultipleViaFlags(t *testing.T) {
 		t.Fatalf("runSetModels: %v", err)
 	}
 	cfg, _ := config.Load(path)
-	if len(cfg.Profiles[0].Models) != 2 || cfg.Profiles[0].Models[0] != "gpt-4o" || cfg.Profiles[0].Models[1] != "gpt-4o-mini" {
+	if len(cfg.Profiles[0].Models) != 2 || cfg.Profiles[0].ModelNames()[0] != "gpt-4o" || cfg.Profiles[0].ModelNames()[1] != "gpt-4o-mini" {
 		t.Errorf("Models = %v, want [gpt-4o gpt-4o-mini]", cfg.Profiles[0].Models)
 	}
 }
@@ -31,7 +31,7 @@ func TestSetModels_ReplacesExistingList(t *testing.T) {
 		t.Fatalf("runSetModels: %v", err)
 	}
 	cfg, _ := config.Load(path)
-	if len(cfg.Profiles[0].Models) != 1 || cfg.Profiles[0].Models[0] != "gpt-4o" {
+	if len(cfg.Profiles[0].Models) != 1 || cfg.Profiles[0].Models[0].Name != "gpt-4o" {
 		t.Errorf("Models = %v, want [gpt-4o] (full replace)", cfg.Profiles[0].Models)
 	}
 }
@@ -86,7 +86,7 @@ func TestSetModels_InteractiveCollectsUntilEmptyLine(t *testing.T) {
 		t.Fatalf("runSetModels: %v", err)
 	}
 	cfg, _ := config.Load(path)
-	if len(cfg.Profiles[0].Models) != 2 || cfg.Profiles[0].Models[0] != "gpt-4o" {
+	if len(cfg.Profiles[0].Models) != 2 || cfg.Profiles[0].Models[0].Name != "gpt-4o" {
 		t.Errorf("Models = %v, want [gpt-4o gpt-4o-mini]", cfg.Profiles[0].Models)
 	}
 }
@@ -137,5 +137,74 @@ func TestSetModels_RegisteredUnderConfig(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("set-models not registered as a subcommand of config")
+	}
+}
+
+// TestSetModels_RetainedModelKeepsIndividualLimits 驗證整批覆寫時，同名模型
+// 保留個別 token 限制；新名稱無個別限制；被移除名稱連同限制一併刪除。
+func TestSetModels_RetainedModelKeepsIndividualLimits(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: openai-official
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-xxxx
+    models:
+      - name: gpt-4o
+        context_window_tokens: 128000
+        max_output_tokens: 4096
+      - gpt-4o-mini
+default_profile: openai-official
+`)
+	before, _ := os.ReadFile(path)
+	var out bytes.Buffer
+	if err := runSetModels(path, "openai-official", []string{"gpt-4o", "o3"}, &out); err != nil {
+		t.Fatalf("runSetModels: %v", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("reload failed: %v", err)
+	}
+	models := cfg.Profiles[0].Models
+	if len(models) != 2 || models[0].Name != "gpt-4o" || models[1].Name != "o3" {
+		t.Fatalf("Models = %+v, want [gpt-4o o3]", models)
+	}
+	if models[0].ContextWindowTokens == nil || *models[0].ContextWindowTokens != 128000 {
+		t.Errorf("gpt-4o should retain context_window_tokens 128000, got %v", models[0].ContextWindowTokens)
+	}
+	if models[0].MaxOutputTokens == nil || *models[0].MaxOutputTokens != 4096 {
+		t.Errorf("gpt-4o should retain max_output_tokens 4096, got %v", models[0].MaxOutputTokens)
+	}
+	if models[1].ContextWindowTokens != nil || models[1].MaxOutputTokens != nil {
+		t.Errorf("new model o3 should have no individual limits, got %+v", models[1])
+	}
+	if !strings.Contains(string(before), "gpt-4o-mini") || strings.Contains(strings.Join(cfg.Profiles[0].ModelNames(), ","), "gpt-4o-mini") {
+		t.Errorf("removed model gpt-4o-mini should be deleted, got %+v", models)
+	}
+}
+
+// TestSetModels_DefaultModelLimitsSurviveReplacement 驗證替換模型清單
+// 不影響 profile 的 default_model_limits。
+func TestSetModels_DefaultModelLimitsSurviveReplacement(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: openai-official
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-xxxx
+    default_model_limits:
+      max_output_tokens: 16384
+    models:
+      - gpt-4o
+default_profile: openai-official
+`)
+	var out bytes.Buffer
+	if err := runSetModels(path, "openai-official", []string{"o3", "gpt-5"}, &out); err != nil {
+		t.Fatalf("runSetModels: %v", err)
+	}
+	cfg, _ := config.Load(path)
+	d := cfg.Profiles[0].DefaultModelLimits
+	if d == nil || d.MaxOutputTokens == nil || *d.MaxOutputTokens != 16384 {
+		t.Errorf("DefaultModelLimits should survive replacement, got %+v", d)
 	}
 }

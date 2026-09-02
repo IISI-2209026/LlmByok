@@ -411,7 +411,7 @@ func runConfigList(cfgPath string, w io.Writer) error {
 			name:     p.Name,
 			provider: p.Provider,
 			apiBase:  p.APIBase,
-			models:   formatModels(p.Models),
+			models:   formatModels(p.ModelNames()),
 			source:   source.String(),
 			key:      maskAPIKey(key),
 			marker:   marker,
@@ -459,7 +459,7 @@ func runConfigList(cfgPath string, w io.Writer) error {
 // profileRow 為 runConfigList 表格的單列，供動態欄寬計算與渲染使用。
 type profileRow struct {
 	name, provider, apiBase, models, source, key string
-	marker                                        string
+	marker                                       string
 }
 
 // pickCol 自所有列萃取指定欄位的字串，供動態欄寬計算使用。
