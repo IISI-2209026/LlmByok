@@ -78,7 +78,8 @@ func promptModels(in io.Reader, out io.Writer) ([]string, error) {
 
 // runSetModels 將 models 整批寫入為指定 profile 的候選模型清單（覆寫）。
 // 空清單 → 錯誤退出 1 且不修改檔案；profile 不存在 → 列出可用 profile
-// 並錯誤退出 1。
+// 並錯誤退出 1。同名模型保留其個別 token 限制；新名稱無個別限制；
+// 被移除名稱的模型與限制一併刪除。default_model_limits 不受影響。
 func runSetModels(cfgPath, name string, models []string, w io.Writer) error {
 	if len(models) == 0 {
 		return fmt.Errorf("至少需要一個候選模型")
@@ -108,7 +109,20 @@ func runSetModels(cfgPath, name string, models []string, w io.Writer) error {
 		}
 		return fmt.Errorf("找不到 profile %q", name)
 	}
-	cfg.Profiles[idx].Models = append([]string(nil), models...)
+	// 以名稱 join：同名模型保留 token 限制，新名稱建立無限制的 Model。
+	existing := make(map[string]config.Model, len(cfg.Profiles[idx].Models))
+	for _, m := range cfg.Profiles[idx].Models {
+		existing[m.Name] = m
+	}
+	fresh := make([]config.Model, 0, len(models))
+	for _, modelName := range models {
+		if kept, ok := existing[modelName]; ok {
+			fresh = append(fresh, kept)
+			continue
+		}
+		fresh = append(fresh, config.Model{Name: modelName})
+	}
+	cfg.Profiles[idx].Models = fresh
 	if err := config.Save(path, cfg); err != nil {
 		return fmt.Errorf("儲存設定檔: %w", err)
 	}

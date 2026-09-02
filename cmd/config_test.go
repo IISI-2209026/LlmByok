@@ -219,7 +219,7 @@ func TestConfigUpdate_KeepsUnspecifiedFields(t *testing.T) {
 	if prof.Provider != "openai" || prof.APIBase != "https://old.com" {
 		t.Errorf("fields changed unexpectedly: %+v", prof)
 	}
-	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+	if len(prof.Models) != 1 || prof.Models[0].Name != "old-model" {
 		t.Errorf("Models should be unchanged: %+v", prof)
 	}
 }
@@ -239,7 +239,7 @@ func TestConfigUpdate_OverwritesSpecifiedFields(t *testing.T) {
 	if prof.Provider != "openai" || prof.APIBase != "https://new.com" {
 		t.Errorf("fields not updated: %+v", prof)
 	}
-	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+	if len(prof.Models) != 1 || prof.Models[0].Name != "old-model" {
 		t.Errorf("Models should be unchanged: %+v", prof)
 	}
 }
@@ -323,7 +323,7 @@ func TestConfigUpdate_InteractiveUpdatesFields(t *testing.T) {
 	if prof.APIBase != "https://new.com" {
 		t.Errorf("APIBase not updated: %+v", prof)
 	}
-	if len(prof.Models) != 1 || prof.Models[0] != "old-model" {
+	if len(prof.Models) != 1 || prof.Models[0].Name != "old-model" {
 		t.Errorf("Models should be unchanged by update: %+v", prof)
 	}
 	stored, err := secret.Load("p")
@@ -650,3 +650,33 @@ func (f failKeyStore) Delete(profileName string) error {
 
 // 確保 errors 套件被使用（failKeyStore 使用 errors.New 於測試中）
 var _ = errors.New
+
+// TestConfigList_MappingModelsShowNamesOnly 驗證 mapping 模型在 list 表格
+// 只顯示 name 欄位值，不顯示 token metadata。
+func TestConfigList_MappingModelsShowNamesOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: p
+    provider: openai
+    api_base: https://x
+    api_key: sk-xxxx
+    models:
+      - name: gpt-5.4
+        context_window_tokens: 1000000
+        max_output_tokens: 128000
+      - name: gpt-5.4-mini
+        max_output_tokens: 32768
+default_profile: p
+`)
+	var out bytes.Buffer
+	if err := runConfigList(path, &out); err != nil {
+		t.Fatalf("runConfigList: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "gpt-5.4, gpt-5.4-mini") {
+		t.Errorf("list should display names gpt-5.4, gpt-5.4-mini in models column, got:\n%s", got)
+	}
+	if strings.Contains(got, "1000000") || strings.Contains(got, "32768") || strings.Contains(got, "128000") {
+		t.Errorf("list must not display token metadata, got:\n%s", got)
+	}
+}

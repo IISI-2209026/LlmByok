@@ -33,15 +33,15 @@ func TestLaunchCodex_ByokApiKeyAndConfigInjected(t *testing.T) {
 	parentBefore := snapshotEnv()
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey: "sk-codex-integration",
-		Models: []string{"gpt-4o"},
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-codex-integration",
+		Models:   []config.Model{{Name: "gpt-4o"}},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodex(profile, "gemma4", stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodex(profile, "gemma4", nil, stub, []string{"--yolo", "exec"}, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodex failed: %v (stderr=%s)", err, stderr.String())
 	}
 
@@ -111,15 +111,15 @@ func TestLaunchCodex_NoExtraArgs(t *testing.T) {
 	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
 
 	profile := &config.Profile{
-		Name:         "openai-official",
-		Provider:     "openai",
-		APIBase:      "https://api.openai.com/v1",
-		APIKey: "sk-codex-integration",
-		Models: []string{"gpt-4o"},
+		Name:     "openai-official",
+		Provider: "openai",
+		APIBase:  "https://api.openai.com/v1",
+		APIKey:   "sk-codex-integration",
+		Models:   []config.Model{{Name: "gpt-4o"}},
 	}
 
 	var stdout, stderr strings.Builder
-	if err := LaunchCodex(profile, "gpt-4o", stub, nil, nil, &stdout, &stderr); err != nil {
+	if err := LaunchCodex(profile, "gpt-4o", nil, stub, nil, nil, &stdout, &stderr, nil); err != nil {
 		t.Fatalf("LaunchCodex failed: %v (stderr=%s)", err, stderr.String())
 	}
 

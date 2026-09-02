@@ -194,6 +194,200 @@ func TestLaunchCodex_ConfigArgsContent(t *testing.T) {
 	}
 }
 
+// TestLaunchCodex_ContextWindowFlagMapsToChildConfigArgs 驗證 cmd dispatch 將
+// CLI 旗標解析的有效 context 傳入 runner：子程序參數含 --config
+// model_context_window=272000，位置緊接 env_key pair 之後、恰一次。
+func TestLaunchCodex_ContextWindowFlagMapsToChildConfigArgs(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    models: [gpt-4o]\ndefault_profile: openai-official\n")
+
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	var stdout, stderr bytes.Buffer
+	opt := launchOptions{cliContextTokens: ptrToken(272000)}
+	if err := runLaunchCodex(path, "", "", nil, &stdout, &stderr, opt); err != nil {
+		t.Fatalf("runLaunchCodex returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	argsData, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args: %v", err)
+	}
+	got := splitNonEmpty(string(argsData))
+	ctxIdx := indexOf(got, "model_context_window=272000")
+	if ctxIdx < 0 {
+		t.Fatalf("child args missing model_context_window=272000, got %v", got)
+	}
+	if got[ctxIdx-1] != "--config" {
+		t.Errorf("context value at %d must be paired with --config, got %q", ctxIdx, got[ctxIdx-1])
+	}
+	envKeyIdx := indexOf(got, `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`)
+	if envKeyIdx < 0 {
+		t.Fatalf("child args missing env_key pair, got %v", got)
+	}
+	if !(envKeyIdx < ctxIdx) {
+		t.Errorf("context pair must follow env_key pair (env_key %d, ctx %d): %v", envKeyIdx, ctxIdx, got)
+	}
+	if count := strings.Count(strings.Join(got, "\n"), "model_context_window"); count != 1 {
+		t.Errorf("expected exactly one model_context_window arg, got %d: %v", count, got)
+	}
+}
+
+// TestLaunchCodex_ProfileDefaultContextWindowMapped 驗證僅設定 profile
+// default_model_limits.context_window_tokens 時（無 CLI 旗標）同樣映射為
+// 子程序 --config model_context_window=<value>。
+func TestLaunchCodex_ProfileDefaultContextWindowMapped(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: openai-official
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-xxxx
+    default_model_limits:
+      context_window_tokens: 272000
+    models: [gpt-4o]
+default_profile: openai-official
+`)
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	var stdout, stderr bytes.Buffer
+	if err := runLaunchCodex(path, "", "", nil, &stdout, &stderr); err != nil {
+		t.Fatalf("runLaunchCodex returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	argsData, _ := os.ReadFile(argsFile)
+	got := splitNonEmpty(string(argsData))
+	if !containsString(got, "model_context_window=272000") {
+		t.Errorf("child args missing model_context_window=272000 (profile default), got %v", got)
+	}
+	envKeyIdx := indexOf(got, `model_providers.byok.env_key="BYOK_CODEX_API_KEY"`)
+	ctxIdx := indexOf(got, "model_context_window=272000")
+	if envKeyIdx >= 0 && ctxIdx >= 0 && !(envKeyIdx < ctxIdx) {
+		t.Errorf("context pair must follow env_key pair (env_key=%d ctx=%d): %v", envKeyIdx, ctxIdx, got)
+	}
+}
+
+// TestLaunchCodex_OutputOnlyLimitsLeaveArgsUnchanged 驗證僅有效
+// max_output_tokens 時：config 參數不變（--yolo 仍在索引 10）、不注入
+// model_context_window；warning 仍寫入 stderr（共用 warning contract）。
+func TestLaunchCodex_OutputOnlyLimitsLeaveArgsUnchanged(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `profiles:
+  - name: openai-official
+    provider: openai
+    api_base: https://api.openai.com/v1
+    api_key: sk-xxxx
+    default_model_limits:
+      max_output_tokens: 32768
+    models: [gpt-4o]
+default_profile: openai-official
+`)
+
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	var stdout, stderr bytes.Buffer
+	extraArgs := []string{"--yolo", "exec", "review this"}
+	if err := runLaunchCodex(path, "", "", extraArgs, &stdout, &stderr); err != nil {
+		t.Fatalf("runLaunchCodex returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args: %v", err)
+	}
+	got := splitNonEmpty(string(data))
+	// output-only：參數順序與既有一致（5 對 --config + extraArgs）。
+	if yoloIdx := indexOf(got, "--yolo"); yoloIdx != 10 {
+		t.Errorf("--yolo index = %d, want 10 (5 --config pairs, context unset): %v", yoloIdx, got)
+	}
+	for _, a := range got {
+		if strings.Contains(a, "model_context_window") {
+			t.Errorf("output-only limits must not produce model_context_window, got %v", got)
+		}
+		if strings.Contains(a, "max_output") {
+			t.Errorf("no output override may reach child args, got %q in %v", a, got)
+		}
+	}
+	if !strings.Contains(stderr.String(), "max_output_tokens") {
+		t.Errorf("stderr should contain unsupported output warning, got: %s", stderr.String())
+	}
+}
+
+// TestLaunchCodex_ContextWithOutputIgnored 驗證 context 與 output 同時有效：
+// 子程序僅收到 model_context_window=1000000、無 output override，stderr 恰
+// 一行 unsupported warning。
+func TestLaunchCodex_ContextWithOutputIgnored(t *testing.T) {
+	keyring.MockInit()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "profiles:\n  - name: openai-official\n    provider: openai\n    api_base: https://api.openai.com/v1\n    api_key: sk-xxxx\n    models: [gpt-4o]\ndefault_profile: openai-official\n")
+
+	stubExe := buildCopilotStubForCodex(t)
+	t.Setenv("PATH", filepath.Dir(stubExe))
+
+	outFile := filepath.Join(t.TempDir(), "env.txt")
+	argsFile := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv("BYOK_STUB_OUT", outFile)
+	t.Setenv("BYOK_STUB_ARGS_OUT", argsFile)
+
+	var stdout, stderr bytes.Buffer
+	opt := launchOptions{cliContextTokens: ptrToken(1000000), cliMaxOutputTokens: ptrToken(128000)}
+	if err := runLaunchCodex(path, "", "gpt-5.4", nil, &stdout, &stderr, opt); err != nil {
+		t.Fatalf("runLaunchCodex returned unexpected error: %v (stderr=%s)", err, stderr.String())
+	}
+
+	data, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("read stub args: %v", err)
+	}
+	got := splitNonEmpty(string(data))
+	ctxCount := 0
+	for _, a := range got {
+		if strings.Contains(a, "model_context_window") {
+			ctxCount++
+		}
+		if strings.Contains(a, "max_output") {
+			t.Errorf("no output override may reach the child, got %q in %v", a, got)
+		}
+	}
+	if ctxCount != 1 {
+		t.Fatalf("expected exactly one model_context_window arg, got %d: %v", ctxCount, got)
+	}
+	if !containsString(got, "model_context_window=1000000") {
+		t.Errorf("child args missing model_context_window=1000000, got %v", got)
+	}
+
+	warnCount := 0
+	for _, line := range strings.Split(stderr.String(), "\n") {
+		if strings.Contains(line, "max_output_tokens") {
+			warnCount++
+		}
+	}
+	if warnCount != 1 {
+		t.Errorf("expected exactly one unsupported output warning line, got %d: %q", warnCount, stderr.String())
+	}
+}
+
 // buildCopilotStubForCodex 編譯 testdata stub 至暫存目錄，命名為 codex
 // （Windows 加 .exe），供 runLaunchCodex 的 LookPath("codex") 解析。
 func buildCopilotStubForCodex(t *testing.T) string {

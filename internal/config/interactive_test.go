@@ -133,15 +133,15 @@ func TestPrompter_MultiplePromptsShareBuffer(t *testing.T) {
 }
 
 func TestApplyProfileUpdates_KeepsUnspecified(t *testing.T) {
-	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []string{"m"}}
+	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []Model{{Name: "m"}}}
 	ApplyProfileUpdates(p, nil, nil)
-	if p.Provider != "openai" || p.APIBase != "https://x" || len(p.Models) != 1 || p.Models[0] != "m" {
+	if p.Provider != "openai" || p.APIBase != "https://x" || len(p.Models) != 1 || p.Models[0].Name != "m" {
 		t.Errorf("fields changed unexpectedly: %+v", p)
 	}
 }
 
 func TestApplyProfileUpdates_OverwritesSpecified(t *testing.T) {
-	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []string{"m"}}
+	p := &Profile{Name: "p", Provider: "openai", APIBase: "https://x", Models: []Model{{Name: "m"}}}
 	newProvider := "anthropic"
 	newBase := "https://y"
 	ApplyProfileUpdates(p, &newProvider, &newBase)
@@ -151,7 +151,7 @@ func TestApplyProfileUpdates_OverwritesSpecified(t *testing.T) {
 	if p.APIBase != "https://y" {
 		t.Errorf("APIBase = %q, want https://y", p.APIBase)
 	}
-	if len(p.Models) != 1 || p.Models[0] != "m" {
+	if len(p.Models) != 1 || p.Models[0].Name != "m" {
 		t.Errorf("Models = %v, want unchanged [m]", p.Models)
 	}
 }

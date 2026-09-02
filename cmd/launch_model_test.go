@@ -12,7 +12,7 @@ import (
 // TestResolveModel_ModelFlagOverridesCandidates 驗證 --model 非空時一律使用該值，
 // 不論候選數量，且不顯示互動選單。
 func TestResolveModel_ModelFlagOverridesCandidates(t *testing.T) {
-	profile := &config.Profile{Name: "p", Models: []string{"a", "b"}}
+	profile := &config.Profile{Name: "p", Models: []config.Model{{Name: "a"}, {Name: "b"}}}
 	var stdin bytes.Buffer
 	var stdout, stderr bytes.Buffer
 	got, err := resolveModelForLaunch(profile, "x", &stdin, &stdout, &stderr)
@@ -30,7 +30,7 @@ func TestResolveModel_ModelFlagOverridesCandidates(t *testing.T) {
 // TestResolveModel_SingleCandidateUsedDirectly 驗證單一候選模型時直接使用，
 // 不讀取 stdin、不顯示選單。
 func TestResolveModel_SingleCandidateUsedDirectly(t *testing.T) {
-	profile := &config.Profile{Name: "p", Models: []string{"gpt-4o"}}
+	profile := &config.Profile{Name: "p", Models: []config.Model{{Name: "gpt-4o"}}}
 	var stdin bytes.Buffer
 	var stdout, stderr bytes.Buffer
 	got, err := resolveModelForLaunch(profile, "", &stdin, &stdout, &stderr)
@@ -66,7 +66,7 @@ func TestResolveModel_MultipleCandidatesNonTtyRejected(t *testing.T) {
 	orig := isTerminal
 	t.Cleanup(func() { isTerminal = orig })
 	isTerminal = func(int) bool { return false }
-	profile := &config.Profile{Name: "p", Models: []string{"a", "b"}}
+	profile := &config.Profile{Name: "p", Models: []config.Model{{Name: "a"}, {Name: "b"}}}
 	stdin := bytes.NewBufferString("")
 	var stdout, stderr bytes.Buffer
 	_, err := resolveModelForLaunch(profile, "", stdin, &stdout, &stderr)
@@ -84,7 +84,7 @@ func TestResolveModel_MultipleCandidatesInteractiveSelects(t *testing.T) {
 	orig := stdinTerminalCheck
 	t.Cleanup(func() { stdinTerminalCheck = orig })
 	stdinTerminalCheck = func(io.Reader) bool { return true }
-	profile := &config.Profile{Name: "p", Models: []string{"gpt-4o", "gpt-4o-mini"}}
+	profile := &config.Profile{Name: "p", Models: []config.Model{{Name: "gpt-4o"}, {Name: "gpt-4o-mini"}}}
 	// 模擬按下 Enter（選第一個）。
 	stdin := bytes.NewBufferString("\r")
 	var stdout, stderr bytes.Buffer
@@ -103,7 +103,7 @@ func TestResolveModel_MultipleCandidatesInteractiveDownThenEnter(t *testing.T) {
 	orig := stdinTerminalCheck
 	t.Cleanup(func() { stdinTerminalCheck = orig })
 	stdinTerminalCheck = func(io.Reader) bool { return true }
-	profile := &config.Profile{Name: "p", Models: []string{"gpt-4o", "gpt-4o-mini"}}
+	profile := &config.Profile{Name: "p", Models: []config.Model{{Name: "gpt-4o"}, {Name: "gpt-4o-mini"}}}
 	stdin := bytes.NewBufferString("\x1b[B\r")
 	var stdout, stderr bytes.Buffer
 	got, err := resolveModelForLaunch(profile, "", stdin, &stdout, &stderr)
@@ -114,3 +114,34 @@ func TestResolveModel_MultipleCandidatesInteractiveDownThenEnter(t *testing.T) {
 		t.Errorf("got %q, want %q (second candidate after Down+Enter)", got, "gpt-4o-mini")
 	}
 }
+
+// TestResolveModel_InteractiveMenuShowsMappingModelNames 驗證互動選單
+// 只顯示 mapping 模型的 name，不含 token metadata。
+func TestResolveModel_InteractiveMenuShowsMappingModelNames(t *testing.T) {
+	orig := stdinTerminalCheck
+	t.Cleanup(func() { stdinTerminalCheck = orig })
+	stdinTerminalCheck = func(io.Reader) bool { return true }
+	profile := &config.Profile{Name: "p", Models: []config.Model{
+		{Name: "gpt-5.4", ContextWindowTokens: ptrCmdInt64(1000000), MaxOutputTokens: ptrCmdInt64(128000)},
+		{Name: "gpt-5.4-mini", MaxOutputTokens: ptrCmdInt64(32768)},
+	}}
+	stdin := bytes.NewBufferString("\r")
+	var stdout, stderr bytes.Buffer
+	got, err := resolveModelForLaunch(profile, "", stdin, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("resolveModelForLaunch: %v", err)
+	}
+	menu := stdout.String()
+	if !strings.Contains(menu, "gpt-5.4") || !strings.Contains(menu, "gpt-5.4-mini") {
+		t.Errorf("menu should list both names in config order, got: %q", menu)
+	}
+	if strings.Contains(menu, "1000000") || strings.Contains(menu, "32768") || strings.Contains(menu, "128000") {
+		t.Errorf("menu must not render token metadata, got: %q", menu)
+	}
+	if got != "gpt-5.4" {
+		t.Errorf("got %q, want first model name", got)
+	}
+}
+
+// ptrCmdInt64 回傳 v 的指標，供 cmd 測試建構模型限制。
+func ptrCmdInt64(v int64) *int64 { return &v }
